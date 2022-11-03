@@ -1,0 +1,12 @@
+gnu-efi/*
+Output/*.o
+Output/*.bin
+Output/Boot/*.o
+Output/Boot/*.so
+Output/Boot/*.efi
+Boot/Resources/gnuefi
+Boot/Resources/lib
+Boot/Resources/*.o
+Boot/Resources/*.lds
+Resources/*.sym
+.vscode
