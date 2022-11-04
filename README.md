@@ -43,7 +43,7 @@ Example: `GNU_EFI_PATH = /home/rover/Documents/gnu-efi`
 #### Gnu-efi
 * download gnu-efi with `git clone https://git.code.sf.net/p/gnu-efi/code gnu-efi`
 * cd and make
-### RoverOS
+#### RoverOS
 1. Ensure all vars are set as required above
 2. cd to the base of the RoverOS folder (where the Makefile is)
 3. run `make required` to copy all needed files from gnu-efi
@@ -56,7 +56,7 @@ Example: `GNU_EFI_PATH = /home/rover/Documents/gnu-efi`
 * create a folder called `Boot`
 #### Setting vars
 * set `USE_ESP` to `1`
-* set `ESP_PATH` to the `Boot` folder you created
+* set `ESP_PATH` to the `Boot` folder you created  
 Example: `ESP_PATH = /boot/efi/EFI/RoverOS/Boot`
 #### Compiling
 * run `make` or `make esp` if RoverOS has already been compiled
