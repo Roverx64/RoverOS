@@ -8,6 +8,7 @@
 //Setup enviornment and load the RoverOS kernel
 
 EFI_STATUS status = 0;
+struct bootInfoS bootInfo;
 
 /*
 //Misc functions
@@ -48,13 +49,13 @@ EFI_STATUS getMmap(){
     Print(L"Obtained mmap version 0x%lx at 0x%llx\n",mmapDescVer,(uint64)bootInfo.memory.mmap);
     EFI_MEMORY_DESCRIPTOR *entry = (EFI_MEMORY_DESCRIPTOR*)bootInfo.memory.mmap;
     while((uint64)entry < (uint64)bootInfo.memory.mmap+(bootInfo.memory.mmapSize*bootInfo.memory.mmapDescriptorSize)){
-        //Print(L"[0x%lx|0x%llx->0x%llx]\n",entry->Type,entry->PhysicalStart,entry->PhysicalStart+(entry->NumberOfPages*EFI_PAGE_SIZE));
-        //Check type for 'free' later
-
-        /*This is not correct and will be redone when loading the .bin from the partition*/
-        if(entry->PhysicalStart <= ROVEROS_BASE_LOAD && ROVEROS_BASE_LOAD < (entry->PhysicalStart+(entry->NumberOfPages*EFI_PAGE_SIZE))){
-            Print(L"Using [0x%lx|0x%llx->0x%llx] for kernel base load | 0x%llx for virtual base\n",entry->Type,entry->PhysicalStart,entry->PhysicalStart+(entry->NumberOfPages*EFI_PAGE_SIZE),(uint64)ROVEROS_BASE_VLOAD);
-            bootInfo.memory.baseLoad = ROVEROS_BASE_LOAD;
+        /*0 will be replaced with the RoverOS.bin size soon*/
+        if(entry->Type == EfiConventionalMemory && GET_ENTRY_SZ(entry->NumberOfPages,EFI_PAGE_SIZE) >= 0){
+            bootInfo.memory.baseLoad = entry->PhysicalStart;
+            bootInfo.memory.baseVload = ROVEROS_BASE_LOAD;
+            Print(L"Using 0x%llx->0x%llx for phys | 0x%llx for virt | Size: 0x%llx\n",(uint64)entry->PhysicalStart,(uint64)entry->PhysicalStart+(uint64)GET_ENTRY_SZ(entry->NumberOfPages,EFI_PAGE_SIZE),(uint64)bootInfo.memory.baseVload,(uint64)GET_ENTRY_SZ(entry->NumberOfPages,EFI_PAGE_SIZE));
+            uefi_call_wrapper(ST->BootServices->AllocatePages,4,AllocateAddress,EfiConventionalMemory,(UINTN)entry->NumberOfPages,(EFI_PHYSICAL_ADDRESS)bootInfo.memory.baseVload);
+            Print(L"Mapped pages\n");
             break;
         }
         entry = NextMemoryDescriptor(entry,bootInfo.memory.mmapDescriptorSize);
