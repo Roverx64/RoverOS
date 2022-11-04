@@ -130,6 +130,7 @@ reset: mov clean
 	if test ${OTHER_PATH}/qemu.log; then rm ${OTHER_PATH}/qemu.log; fi
 	if test ./hdd.img; then rm ./hdd.img; fi
 	if test -d ./ISO; then rm -r ./ISO; fi
+	if test ./RoverOS.iso; then rm ./RoverOS.iso; fi
 
 
 .PHONY: required clean reset mov
