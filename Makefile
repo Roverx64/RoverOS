@@ -1,16 +1,33 @@
 #=====Configurable=====#
 #=Options
 USE_ESP = 0
-USE_UEFI_RUN = 1
+USE_UEFI_RUN = 0
 USE_HDD = 0
+USE_GDB = 0
 #=Paths
 GNU_EFI_PATH = NONE
 HDD_PATH = NONE
 EFI_PATH = ./Boot/Resources
 OTHER_PATH = ./Resources
 ESP_PATH = NONE
-OVMF_PATH = /usr/share/qemu/OVMF.fd
+OVMF_PATH = /usr/share/qemu
 OUTPUT = ./Output
+#=Qemu
+QARGS = -bios ${OVMF_PATH}/OVMF.fd
+QARGS += -m 2G
+QARGS += -d cpu_reset
+QARGS += -D ${OTHER_PATH}/qemu.log
+QARGS += -cdrom ./RoverOS.iso
+QARGS += -serial file:${OTHER_PATH}/RoverOS.log
+QARGS += -monitor stdio
+QARGS += -usb
+QARGS += -device ahci,id=ahci
+QARGS += -drive format=raw,file=hdd.img,id=hddi
+QARGS += -rtc base=utc
+QARGS += -no-reboot
+ifeq (${USE_GDB}, 1)
+QARGS += -s -S
+endif
 
 #===Non=Configurable===#
 #=GCC
@@ -42,9 +59,11 @@ CF := $(subst .c,.o,$(CS_2))
 LINKER = ld
 EFI_LINKER = ${LINKER}
 
-all: efi esp $(CF) mov compile clean
+all: efi esp $(CF) mov compile iso hdd clean
     ifeq (${USE_UEFI_RUN}, 1)
 		uefi-run ${OUTPUT}/Boot/RoverOS.efi -- -m 2G
+    else
+		qemu-system-x86_64 ${QARGS}
     endif
 
 #EFI
@@ -59,6 +78,12 @@ esp:
     ifeq (${USE_ESP}, 1)
 	if sudo test -d '${ESP_PATH}'; then sudo cp ${OUTPUT}/Boot/RoverOS.efi ${ESP_PATH}/RoverOS.efi; else echo "Please update your ESP path or create 'RoverOS/Boot' in your EFI directory"; fi
     endif
+
+iso:
+	mkdir -p ./ISO/boot/grub
+	cp ${OTHER_PATH}/grub.cfg ./ISO/boot/grub
+	grub-mkrescue -o ./RoverOS.iso ./ISO
+	rm -r ./ISO
 
 #Kernel
 
@@ -85,6 +110,15 @@ clean:
 	$(shell rm -r ${OUTPUT}/Boot/*.o)
 	$(shell rm -r ${OUTPUT}/Boot/*.so)
 
+hdd:
+	dd if=/dev/zero of=hdd.img bs=1M count=50
+	mkfs.vfat -F 32 hdd.img
+	mmd -i hdd.img ::/Binaries
+	mmd -i hdd.img ::/EFI
+	mcopy -i hdd.img ${OUTPUT}/RoverOS.bin ::/Binaries/
+	mcopy -i hdd.img ${OUTPUT}/RoverOS.bin ::/
+	mcopy -i hdd.img ${OUTPUT}/Boot/RoverOS.efi ::/EFI/
+
 reset: mov clean
 	if test -d ${EFI_PATH}/gnuefi; then rm -r ${EFI_PATH}/gnuefi; fi
 	if test -d ${EFI_PATH}/lib; then rm -r ${EFI_PATH}/lib; fi
@@ -92,6 +126,10 @@ reset: mov clean
 	if test ${OUTPUT}/Boot/RoverOS.efi; then rm ${OUTPUT}/Boot/RoverOS.efi; fi
 	if test ${OUTPUT}/RoverOS.bin; then rm ${OUTPUT}/RoverOS.bin; fi
 	if test ${OTHER_PATH}/RoverOS.sym; then rm ${OTHER_PATH}/RoverOS.sym; fi
+	if test ${OTHER_PATH}/RoverOS.log; then rm ${OTHER_PATH}/RoverOS.log; fi
+	if test ${OTHER_PATH}/qemu.log; then rm ${OTHER_PATH}/qemu.log; fi
+	if test ./hdd.img; then rm ./hdd.img; fi
+	if test -d ./ISO; then rm -r ./ISO; fi
 
 
 .PHONY: required clean reset mov

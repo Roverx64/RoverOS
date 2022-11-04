@@ -22,7 +22,6 @@ These are things I will likely add in the future
 * ARM CPUs
 
 ### Requirements
-* `uefi-run`
 * `gcc` or an x86_64 cross compiler in /home/your_username/opt/cross/bin
 * `ld`
 * `ovmf` (I suggest looking up how to get ovmf for your distro)
@@ -32,14 +31,16 @@ These are things I will likely add in the future
 * `gnu-efi` (This will have to be compiled from source)
 * `qemu` (x86_64 version)
 
-### Compiling
+# Compiling
 #### Setting vars
 Do not include the '' or "" unless specified. Avoid adding a space or / after a variable as Make will mess up  
 **Correct:** `EXMAPLE_VAR = /path/to/something` **Incorrect:** `EXMAPLE_VAR = /path/to/something/ `  
 * set `GNU_EFI_PATH` to the absolute path of the gnu-efi source directory  
 Example: `GNU_EFI_PATH = /home/rover/Documents/gnu-efi`
 * set `USE_ESP` to `1` only if copying the efi to your hdd
-* set `USE_UEFI_RUN` to `1` (This will be optional when Qemu is set up on my end)
+* set `OVMF_PATH` to where your OVMF.fd file is (This is likely to be in `/usr/share/qemu`)  
+Example: `OVMF_PATH = /use/share/qemu`  
+Note: You may have to chown this file to allow Qemu to use it
 #### Gnu-efi
 * download gnu-efi with `git clone https://git.code.sf.net/p/gnu-efi/code gnu-efi`
 * cd and make
@@ -49,7 +50,7 @@ Example: `GNU_EFI_PATH = /home/rover/Documents/gnu-efi`
 3. run `make required` to copy all needed files from gnu-efi
 4. run `make` to compile and run the EFI application
 
-### Real hardware (Sudo required)
+# Real hardware (Sudo required)
 #### Creating folders
 * cd into the `EFI` folder in your EFI System Partiton (ESP) (This is at `/boot/efi/EFI` on Ubuntu)
 * create a folder named `RoverOS` && cd into it
@@ -62,6 +63,7 @@ Example: `ESP_PATH = /boot/efi/EFI/RoverOS/Boot`
 * run `make` or `make esp` if RoverOS has already been compiled
 #### GRUB
 * Put the following in your `40_custom` grub file. Be sure to edit it to the EFI file in your ESP path
+* set the root to your ESP partition
 ```
 menuentry "RoverOS" {
         set root='hd0,gpt1'
@@ -71,3 +73,6 @@ menuentry "RoverOS" {
 This file is at `/etc/grub.d/` for Ubuntu  
 6. update grub config via command (Search up how to do it for your distro)  
 7. Reboot and the option 'RoverOS' should be there
+
+# Misc
+* `make reset` cleans the directory to the default state
