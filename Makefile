@@ -5,7 +5,7 @@ USE_UEFI_RUN = 0
 USE_HDD = 0
 USE_GDB = 0
 #=Paths
-GNU_EFI_PATH = NONE
+GNU_EFI_PATH = /home/rover/Documents/gnu-efi
 HDD_PATH = NONE
 EFI_PATH = ./Boot/Resources
 OTHER_PATH = ./Resources
@@ -45,16 +45,22 @@ EFI_LD_FLAGS = -shared -Bsymbolic -L${EFI_PATH}/lib -L${EFI_PATH}/gnuefi -T${EFI
 #=Include
 INCLUDE = -I./Headers \
 		  -I./Headers/System \
-		  -I./Headers/FS
-EFI_INCLUDE = -I${EFI_PATH}/Include $(INCLUDE)
+		  -I./Headers/Memory
+EFI_INCLUDE = -I${EFI_PATH}/Include -I./Boot/Include $(INCLUDE)
 #=Files
 CS_0 := $(shell find . -path ./Boot -prune -o -path ./libc -prune -o -name *.c)
 CS_1 := $(subst ./Boot, ,$(CS_0))
 CS_2 := $(subst ./libc, ,$(CS_1))
 CF := $(subst .c,.o,$(CS_2))
+EF_0 := $(shell find . -path ./Kernel -prune -o -path ./libc -prune -o -name *.c)
+EF_1 := $(subst ./Kernel, ,$(EF_0))
+EF_2 := $(subst ./libc, ,$(EF_1))
+EF := $(subst .c,_efi.o,$(EF_2))
 #=Rules
 %.o: $(notdir %.c)
 	${CC} ${CFLAGS} ${INCLUDE} ./$< -o $@
+%_efi.o: $(notdir %.c)
+	${EFI_CC} ${EFI_CFLAGS} ${EFI_INCLUDE} ./$< -o ${OUTPUT}/$@
 #=Linker
 LINKER = ld
 EFI_LINKER = ${LINKER}
@@ -68,11 +74,11 @@ all: efi esp $(CF) mov compile iso hdd clean
 
 #EFI
 
-efi:
+efi: $(EF)
 	cp ${EFI_PATH}/lib/data.o ${OUTPUT}/Boot/data.o
-	${EFI_CC} ${EFI_CFLAGS} ./Boot/boot.c -o ${OUTPUT}/Boot/boot.o ${EFI_INCLUDE}
 	${EFI_LINKER} ${EFI_LD_FLAGS} ${OUTPUT}/Boot/*.o -o ${OUTPUT}/Boot/boot.so -lgnuefi -lefi
 	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-x86_64 --subsystem=10 ${OUTPUT}/Boot/boot.so ${OUTPUT}/Boot/RoverOS.efi
+	objcopy --only-keep-debug ${OUTPUT}/Boot/boot.so ${OTHER_PATH}/Bootloader.sym
 
 esp:
     ifeq (${USE_ESP}, 1)
@@ -97,7 +103,7 @@ compile:
 
 #Tools
 
-required:
+required: dir
 	mkdir ${EFI_PATH}/Include
 	cp ${GNU_EFI_PATH}/inc/*.h ${EFI_PATH}/Include
 	cp -r ${GNU_EFI_PATH}/inc/x86_64 ${EFI_PATH}/Include
@@ -120,17 +126,18 @@ hdd:
 	mcopy -i hdd.img ${OUTPUT}/Boot/RoverOS.efi ::/EFI/
 
 reset: mov clean
-	if test -d ${EFI_PATH}/gnuefi; then rm -r ${EFI_PATH}/gnuefi; fi
-	if test -d ${EFI_PATH}/lib; then rm -r ${EFI_PATH}/lib; fi
-	if test -d ${EFI_PATH}/Include; then rm -r ${EFI_PATH}/Include; fi
-	if test ${OUTPUT}/Boot/RoverOS.efi; then rm ${OUTPUT}/Boot/RoverOS.efi; fi
-	if test ${OUTPUT}/RoverOS.bin; then rm ${OUTPUT}/RoverOS.bin; fi
+	if test -d ${EFI_PATH}; then rm -r ${EFI_PATH}; fi
+	if test -d ${OUTPUT}; then rm -r ${OUTPUT}; fi
 	if test ${OTHER_PATH}/RoverOS.sym; then rm ${OTHER_PATH}/RoverOS.sym; fi
+	if test ${OTHER_PATH}/Bootloader.sym; then rm ${OTHER_PATH}/Bootloader.sym; fi
 	if test ${OTHER_PATH}/RoverOS.log; then rm ${OTHER_PATH}/RoverOS.log; fi
 	if test ${OTHER_PATH}/qemu.log; then rm ${OTHER_PATH}/qemu.log; fi
 	if test ./hdd.img; then rm ./hdd.img; fi
 	if test -d ./ISO; then rm -r ./ISO; fi
 	if test ./RoverOS.iso; then rm ./RoverOS.iso; fi
 
+dir:
+	if ! test -d ${EFI_PATH}; then mkdir ${EFI_PATH}; fi
+	if ! test -d ${OUTPUT}/Boot; then mkdir -p ${OUTPUT}/Boot; fi
 
 .PHONY: required clean reset mov
