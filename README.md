@@ -54,7 +54,7 @@ Note: You may have to chown this file to allow Qemu to use it
 * The file currently does not load properly on real hardware
 #### Setting vars
 * set `USE_HDD` to `1` (If copying to HDD)  
-* set `HDD_PATH` to a FAT32 partition
+* set `HDD_PATH` to a FAT32 partition  
 Example: `HDD_PATH = /media/rover/C4D3-DC2C`
 #### Compiling
 * run `make` or `make hdw` if RoverOS has already been compiled
