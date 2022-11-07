@@ -1,15 +1,13 @@
 #=====Configurable=====#
 #=Options
-USE_ESP = 0
-USE_UEFI_RUN = 0
 USE_HDD = 0
+USE_KVM = 0
 USE_GDB = 0
 #=Paths
-GNU_EFI_PATH = /home/rover/Documents/gnu-efi
+GNU_EFI_PATH = NONE
 HDD_PATH = NONE
 EFI_PATH = ./Boot/Resources
 OTHER_PATH = ./Resources
-ESP_PATH = NONE
 OVMF_PATH = /usr/share/qemu
 OUTPUT = ./Output
 #=Qemu
@@ -28,6 +26,11 @@ QARGS += -no-reboot
 ifeq (${USE_GDB}, 1)
 QARGS += -s -S
 endif
+ifeq (${USE_KVM}, 1)
+EMULATOR = kvm
+else
+EMULATOR = qemu-system-x86_64
+endif
 
 #===Non=Configurable===#
 #=GCC
@@ -39,7 +42,7 @@ endif
 EFI_CC = ${CC}
 #=Flags
 CFLAGS = -Wno-format -Wno-unused-variable -Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-implicit-function-declaration -ffreestanding -mcmodel=large -m64 -fno-pic -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -c -ggdb
-EFI_CFLAGS = -fpic -ffreestanding -fno-stack-protector -fno-stack-check -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -c
+EFI_CFLAGS = -fpic -ffreestanding -fno-stack-protector -fno-stack-check -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -Wno-packed-bitfield-compat -c
 LD_FLAGS = -m elf_x86_64 -nostdlib -T ${OTHER_PATH}/linker.ld
 EFI_LD_FLAGS = -shared -Bsymbolic -L${EFI_PATH}/lib -L${EFI_PATH}/gnuefi -T${EFI_PATH}/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/crt0-efi-x86_64.o
 #=Include
@@ -65,12 +68,8 @@ EF := $(subst .c,_efi.o,$(EF_2))
 LINKER = ld
 EFI_LINKER = ${LINKER}
 
-all: efi esp $(CF) mov compile iso hdd clean
-    ifeq (${USE_UEFI_RUN}, 1)
-		uefi-run ${OUTPUT}/Boot/RoverOS.efi -- -m 2G
-    else
-		qemu-system-x86_64 ${QARGS}
-    endif
+all: efi hdw $(CF) mov compile iso hdd clean
+	${EMULATOR} ${QARGS}
 
 #EFI
 
@@ -80,9 +79,12 @@ efi: $(EF)
 	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-x86_64 --subsystem=10 ${OUTPUT}/Boot/boot.so ${OUTPUT}/Boot/RoverOS.efi
 	objcopy --only-keep-debug ${OUTPUT}/Boot/boot.so ${OTHER_PATH}/Bootloader.sym
 
-esp:
-    ifeq (${USE_ESP}, 1)
-	if sudo test -d '${ESP_PATH}'; then sudo cp ${OUTPUT}/Boot/RoverOS.efi ${ESP_PATH}/RoverOS.efi; else echo "Please update your ESP path or create 'RoverOS/Boot' in your EFI directory"; fi
+hdw:
+    ifeq (${USE_HDD}, 1)
+	cp ${OUTPUT}/Boot/RoverOS.efi ${HDD_PATH}/RoverOS.efi
+	$(shell mkdir -p ${HDD_PATH}/Binaries)
+	cp ${OUTPUT}/RoverOS.bin ${HDD_PATH}/Binaries
+	cp ${OUTPUT}/RoverOS.bin ${HDD_PATH}
     endif
 
 iso:

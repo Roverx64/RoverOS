@@ -37,7 +37,6 @@ Do not include the '' or "" unless specified. Avoid adding a space or / after a 
 **Correct:** `EXMAPLE_VAR = /path/to/something` **Incorrect:** `EXMAPLE_VAR = /path/to/something/ `  
 * set `GNU_EFI_PATH` to the absolute path of the gnu-efi source directory  
 Example: `GNU_EFI_PATH = /home/rover/Documents/gnu-efi`
-* set `USE_ESP` to `1` only if copying the efi to your hdd
 * set `OVMF_PATH` to where your OVMF.fd file is (This is likely to be in `/usr/share/qemu`)  
 Example: `OVMF_PATH = /use/share/qemu`  
 Note: You may have to chown this file to allow Qemu to use it
@@ -50,24 +49,23 @@ Note: You may have to chown this file to allow Qemu to use it
 3. run `make required` to copy all needed files from gnu-efi
 4. run `make` to compile and run the EFI application
 
-# Real hardware (Sudo required)
-#### Creating folders
-* cd into the `EFI` folder in your EFI System Partiton (ESP) (This is at `/boot/efi/EFI` on Ubuntu)
-* create a folder named `RoverOS` && cd into it
-* create a folder called `Boot`
+# Real hardware (Empty FAT32 Partiton needed)
+#### Issues
+* The file currently does not load properly on real hardware
 #### Setting vars
-* set `USE_ESP` to `1`
-* set `ESP_PATH` to the `Boot` folder you created  
-Example: `ESP_PATH = /boot/efi/EFI/RoverOS/Boot`
+* set `USE_HDD` to `1` (If copying to HDD)  
+* set `HDD_PATH` to a FAT32 partition
+Example: `HDD_PATH = /media/rover/C4D3-DC2C`
 #### Compiling
-* run `make` or `make esp` if RoverOS has already been compiled
+* run `make` or `make hdw` if RoverOS has already been compiled
 #### GRUB
-* Put the following in your `40_custom` grub file. Be sure to edit it to the EFI file in your ESP path
-* set the root to your ESP partition
+* Put the following in your `40_custom` grub file.
+* set the root to your FAT32 partition 
+* hd# where # is the HDD number, gpt# where # is the partition number
 ```
 menuentry "RoverOS" {
-        set root='hd0,gpt1'
-        chainloader /EFI/RoverOS/Boot/RoverOS.efi
+        set root='hd0,gpt2'
+        chainloader /RoverOS.efi
 }
 ```
 This file is at `/etc/grub.d/` for Ubuntu  

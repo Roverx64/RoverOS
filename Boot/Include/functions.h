@@ -16,5 +16,8 @@ typedef struct EFIFileS{
 extern EFI_STATUS fileInfo(EFIFile *file);
 extern EFI_STATUS loadFile(EFIFile *file, uint64 mode, uint64 flags);
 extern EFI_STATUS loadElf(EFIFile *elf);
-extern EFI_STATUS getMmap(struct bootInfoS *bootInfo,uint64 ksz);
+extern void *getSection(uint64 size, uint64 attributes);
+extern EFI_STATUS initMmap(struct bootInfoS *bootInfo);
 extern EFI_STATUS mapMemory(struct bootInfoS *bootInfo);
+
+#define GS_INVALID_PTR 0xFFF

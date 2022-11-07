@@ -32,7 +32,7 @@ EFI_STATUS loadKernel(EFI_HANDLE image){
     status = fileInfo(&Kernel);
     if(status != EFI_SUCCESS){Print(L"Failed to get kernel info\n"); return status;}
     Print(L"Kernel size: 0x%llx\n",(uint64)Kernel.Info->FileSize);
-    //status = loadElf(&Kernel);
+    status = loadElf(&Kernel);
     return status;
 }
 
@@ -56,16 +56,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     SystemTable->BootServices->SetWatchdogTimer = 0;
     Print(L"Disabled watchdog\n");
     //Get info to load RoverOS kernel
+    if(initMmap(&bootInfo) != EFI_SUCCESS){goto efiErrorEnd;}
     if(loadKernel(ImageHandle) != EFI_SUCCESS){goto efiErrorEnd;}
-    if(getMmap(&bootInfo,Kernel.Info->FileSize) != EFI_SUCCESS){goto efiErrorEnd;}
     if(getACPI() != EFI_SUCCESS){goto efiErrorEnd;}
     if(mapMemory(&bootInfo) != EFI_SUCCESS){goto efiErrorEnd;}
     Print(L"Exiting boot services\n");
-    uefi_call_wrapper(ST->BootServices->ExitBootServices,2,ImageHandle,bootInfo.memory.mmapKey);
-    Print(L"Booting RoverOS\n");
-    //Loop forever on return
-    asm("cli");
-    for(;;){asm("hlt");}
+    /*The kernel is not ready to boot, so I will disable this for now*/
+    //uefi_call_wrapper(ST->BootServices->ExitBootServices,2,ImageHandle,bootInfo.memory.mmapKey);
     efiErrorEnd:
     Print(L"Press any key to continue\n");
     Pause();

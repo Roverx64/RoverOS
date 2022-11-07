@@ -5,24 +5,35 @@
 #include "boot.h"
 #include "functions.h"
 
-EFI_STATUS getMmap(struct bootInfoS *bootInfo,uint64 ksz){
-    Print(L"Obtaining mmap\n");
-    UINTN mmapDescVer = 0;
-    bootInfo->memory.mmap = (uintptr*)LibMemoryMap((UINTN*)&bootInfo->memory.mmapSize,(UINTN*)&bootInfo->memory.mmapKey,(UINTN*)&bootInfo->memory.mmapDescriptorSize,(UINT32*)&mmapDescVer);
-    Print(L"Obtained mmap version 0x%lx at 0x%llx\n",mmapDescVer,(uint64)bootInfo->memory.mmap);
-    EFI_MEMORY_DESCRIPTOR *entry = (EFI_MEMORY_DESCRIPTOR*)bootInfo->memory.mmap;
-    while((uint64)entry < (uint64)bootInfo->memory.mmap+(bootInfo->memory.mmapSize*bootInfo->memory.mmapDescriptorSize)){
-        /*0 will be replaced with the RoverOS.bin size soon*/
-        if(entry->Type == EfiConventionalMemory && GET_ENTRY_SZ(entry->NumberOfPages,EFI_PAGE_SIZE) >= ksz){
-            bootInfo->memory.baseLoad = entry->PhysicalStart;
-            bootInfo->memory.baseVload = ROVEROS_BASE_LOAD;
-            Print(L"Using 0x%llx->0x%llx for phys | 0x%llx for virt | Size: 0x%llx\n",(uint64)entry->PhysicalStart,(uint64)entry->PhysicalStart+(uint64)GET_ENTRY_SZ(entry->NumberOfPages,EFI_PAGE_SIZE),(uint64)bootInfo->memory.baseVload,(uint64)GET_ENTRY_SZ(entry->NumberOfPages,EFI_PAGE_SIZE));
+EFI_MEMORY_DESCRIPTOR *start = NULL;
+uint32 entries;
+uint64 descSize = 0;
+
+void *getSection(uint64 size, uint64 attributes){ //Returns first available phys addr for use
+    EFI_MEMORY_DESCRIPTOR *entry = start;
+    void *ret = (void*)GS_INVALID_PTR;
+    uint32 i = entries;
+    while(i > 0){
+        if((entry->Attribute&attributes) == attributes && entry->Type == EfiConventionalMemory && GET_ENTRY_SZ(entry->NumberOfPages,EFI_PAGE_SIZE) >= size){
+            ret = (void*)entry->PhysicalStart;
             break;
         }
-        entry = NextMemoryDescriptor(entry,bootInfo->memory.mmapDescriptorSize);
+        entry = NextMemoryDescriptor(entry,descSize);
+        --i;
     }
-    //Check if a valid entry was found
-    if(bootInfo->memory.baseLoad == 0x0){Print(L"No suitable memory found\n"); return !EFI_SUCCESS;}
+    return ret;
+}
+
+EFI_STATUS initMmap(struct bootInfoS *bootInfo){
+    Print(L"Initilizing mmap\n");
+    //Get memory map from UEFI
+    UINTN mmapDescVer = 0;
+    bootInfo->memory.mmap = (uintptr*)LibMemoryMap((UINTN*)&bootInfo->memory.mmapSize,(UINTN*)&bootInfo->memory.mmapKey,(UINTN*)&bootInfo->memory.mmapDescriptorSize,(UINT32*)&mmapDescVer);
+    //Set vars
+    start = (EFI_MEMORY_DESCRIPTOR*)bootInfo->memory.mmap;
+    entries = bootInfo->memory.mmapSize;
+    descSize = bootInfo->memory.mmapDescriptorSize;
+    Print(L"Obtained mmap version 0x%lx at 0x%llx with 0x%llx entries\n",(uint32)mmapDescVer,(uint64)bootInfo->memory.mmap,(uint64)entries);
     return EFI_SUCCESS;
 }
 

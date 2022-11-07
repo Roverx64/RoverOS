@@ -14,6 +14,11 @@ typedef uint16 ELF64_Section;
 
 #define ELF64_MAGIC 0x7F454C46
 
+//Flips bytes in memory to the correct value
+#define ELF_READ32(v) (((v<<24)|(v>>24))|((v&0x00FF0000)>>8|(v&0x0000FF00)<<8))
+#define ELF_READ16(v) ((v<<8)|(v>>8))
+#define ELF_READ64(v) (ELF_READ32(v&0xFFFFFFFF)|ELF_READ32(v&((uint64)0xFFFFFFFF<<32)))
+
 struct ELF64eident{
     ELF64_Word magic;
     ELF64_Byte class;
@@ -52,3 +57,6 @@ struct ELF64Section{
     ELF64_Xword align;
     ELF64_Xword entsize;
 }__attribute__((packed));
+
+#define ELF_CLASS32 1
+#define ELF_CLASS64 2
