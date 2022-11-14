@@ -10,4 +10,5 @@ Boot/Resources/Include
 Boot/Resources/*.o
 Boot/Resources/*.lds
 Resources/*.sym
+.gitignore
 .vscode

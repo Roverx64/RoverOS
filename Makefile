@@ -8,7 +8,7 @@ GNU_EFI_PATH = NONE
 HDD_PATH = NONE
 EFI_PATH = ./Boot/Resources
 OTHER_PATH = ./Resources
-OVMF_PATH = /usr/share/qemu
+OVMF_PATH = NONE
 OUTPUT = ./Output
 #=Qemu
 QARGS = -bios ${OVMF_PATH}/OVMF.fd
@@ -68,7 +68,7 @@ EF := $(subst .c,_efi.o,$(EF_2))
 LINKER = ld
 EFI_LINKER = ${LINKER}
 
-all: efi hdw $(CF) mov compile iso hdd clean
+all: efi $(CF) mov compile iso hdd hdw clean
 	${EMULATOR} ${QARGS}
 
 #EFI
@@ -81,10 +81,12 @@ efi: $(EF)
 
 hdw:
     ifeq (${USE_HDD}, 1)
-	cp ${OUTPUT}/Boot/RoverOS.efi ${HDD_PATH}/RoverOS.efi
-	$(shell mkdir -p ${HDD_PATH}/Binaries)
-	cp ${OUTPUT}/RoverOS.bin ${HDD_PATH}/Binaries
-	cp ${OUTPUT}/RoverOS.bin ${HDD_PATH}
+	mkdir -p ./HDD/Binaries
+	cp ${OUTPUT}/Boot/RoverOS.efi ./HDD/Binaries/RoverOS.efi
+	cp ${OUTPUT}/Boot/RoverOS.efi ./HDD/RoverOS.efi
+	cp ${OUTPUT}/RoverOS.bin ./HDD/Binaries/RoverOS.bin
+	cp ${OUTPUT}/RoverOS.bin ./HDD/RoverOS.bin
+	cp -r ./HDD/* ${HDD_PATH}
     endif
 
 iso:
@@ -125,6 +127,7 @@ hdd:
 	mmd -i hdd.img ::/EFI
 	mcopy -i hdd.img ${OUTPUT}/RoverOS.bin ::/Binaries/
 	mcopy -i hdd.img ${OUTPUT}/RoverOS.bin ::/
+	mcopy -i hdd.img ./HDD/test.txt ::/test.txt
 	mcopy -i hdd.img ${OUTPUT}/Boot/RoverOS.efi ::/EFI/
 
 reset: mov clean
@@ -136,10 +139,11 @@ reset: mov clean
 	if test ${OTHER_PATH}/qemu.log; then rm ${OTHER_PATH}/qemu.log; fi
 	if test ./hdd.img; then rm ./hdd.img; fi
 	if test -d ./ISO; then rm -r ./ISO; fi
+	if test -d ./HDD; then rm -r ./HDD; fi
 	if test ./RoverOS.iso; then rm ./RoverOS.iso; fi
 
 dir:
 	if ! test -d ${EFI_PATH}; then mkdir ${EFI_PATH}; fi
 	if ! test -d ${OUTPUT}/Boot; then mkdir -p ${OUTPUT}/Boot; fi
 
-.PHONY: required clean reset mov
+.PHONY: required clean reset mov hdw

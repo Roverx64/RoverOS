@@ -27,7 +27,11 @@ EFI_STATUS loadKernel(EFI_HANDLE image){
     uint16 *n = L"RoverOS.bin";
     Kernel.name = n;
     Kernel.image = image;
-    status = loadFile(&Kernel,EFI_FILE_MODE_READ,EFI_FILE_READ_ONLY|EFI_FILE_SYSTEM);
+    loadVolume(&Kernel);
+    if(status != EFI_SUCCESS){Print(L"Failed to open volume\n"); return !EFI_SUCCESS;}
+    Kernel.mode = EFI_FILE_MODE_READ;
+    Kernel.flags = EFI_FILE_READ_ONLY|EFI_FILE_SYSTEM;
+    status = loadFile(&Kernel);
     if(status != EFI_SUCCESS){Print(L"Failed to load kernel binary\n"); return status;}
     status = fileInfo(&Kernel);
     if(status != EFI_SUCCESS){Print(L"Failed to get kernel info\n"); return status;}

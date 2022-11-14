@@ -53,7 +53,7 @@ Note: You may have to chown this file to allow Qemu to use it
 #### Issues
 * The file currently does not load properly on real hardware
 #### Setting vars
-* set `USE_HDD` to `1` (If copying to HDD)  
+* set `USE_HDD` to `1`
 * set `HDD_PATH` to a FAT32 partition  
 Example: `HDD_PATH = /media/rover/C4D3-DC2C`
 #### Compiling
