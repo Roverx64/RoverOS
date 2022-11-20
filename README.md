@@ -10,7 +10,7 @@ These are things I will likely add in the future
 * 2MB Paging
 * Multitasking
 * Networking
-* Custom libc
+* Custom libc (Likely not POSIX complaint)
 * Auto makefile config
 * ARM support
 * Proper UI implementation over legacy x86 RoverOS
@@ -21,8 +21,12 @@ These are things I will likely add in the future
 * Non x64 (64 bit) CPUs
 * ARM CPUs
 
+### Issues
+* IDT currently does not load properly
+* Modifiying the pml4e causes a page fault
+
 ### Requirements
-* `gcc` or an x86_64 cross compiler in /home/your_username/opt/cross/bin
+* `gcc` or an x86_64 cross compiler in `/home/your_username/opt/cross/bin`
 * `ld`
 * `ovmf` (I suggest looking up how to get ovmf for your distro)
 * `Make`
@@ -33,7 +37,7 @@ These are things I will likely add in the future
 
 # Compiling
 #### Setting vars
-Do not include the '' or "" unless specified. Avoid adding a space or / after a variable as Make will mess up  
+Do not include the '' or "" unless specified and avoid adding a space or / after a variable  
 **Correct:** `EXMAPLE_VAR = /path/to/something` **Incorrect:** `EXMAPLE_VAR = /path/to/something/ `  
 * set `GNU_EFI_PATH` to the absolute path of the gnu-efi source directory  
 Example: `GNU_EFI_PATH = /home/rover/Documents/gnu-efi`
@@ -41,8 +45,9 @@ Example: `GNU_EFI_PATH = /home/rover/Documents/gnu-efi`
 Example: `OVMF_PATH = /use/share/qemu`  
 Note: You may have to chown this file to allow Qemu to use it
 #### Gnu-efi
+* cd to your Documents folder
 * download gnu-efi with `git clone https://git.code.sf.net/p/gnu-efi/code gnu-efi`
-* cd and make
+* cd and run `make`
 #### RoverOS
 1. Ensure all vars are set as required above
 2. cd to the base of the RoverOS folder (where the Makefile is)
@@ -50,11 +55,15 @@ Note: You may have to chown this file to allow Qemu to use it
 4. run `make` to compile and run the EFI application
 
 # Real hardware (Empty FAT32 Partiton needed)
+#### Requirements
+* GPT Formatted HDD
+* 30 MB FAT32 Partition
+* GRUB Bootloader
 #### Issues
-* The file currently does not load properly on real hardware
+* No currently known issues
 #### Setting vars
 * set `USE_HDD` to `1`
-* set `HDD_PATH` to a FAT32 partition  
+* set `HDD_PATH` to a FAT32 partition and ensure the partition is mounted  
 Example: `HDD_PATH = /media/rover/C4D3-DC2C`
 #### Compiling
 * run `make` or `make hdw` if RoverOS has already been compiled

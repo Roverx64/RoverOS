@@ -18,10 +18,16 @@ struct bootInfoACPI{
     uint64 xsdt;
 };
 
+struct bootInfoIO{
+    uintptr idtp;
+    uintptr idt;
+};
+
 //For use in the kernel
 struct bootInfoS{
     struct bootInfoMmap memory;
     struct bootInfoACPI acpi;
+    struct bootInfoIO io;
 };
 
 /*=====Macros=====*/

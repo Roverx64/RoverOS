@@ -4,11 +4,11 @@ USE_HDD = 0
 USE_KVM = 0
 USE_GDB = 0
 #=Paths
-GNU_EFI_PATH = NONE
-HDD_PATH = NONE
+GNU_EFI_PATH = /home/rover/Documents/gnu-efi
+HDD_PATH = /media/rover/6297-2783
 EFI_PATH = ./Boot/Resources
 OTHER_PATH = ./Resources
-OVMF_PATH = NONE
+OVMF_PATH = /usr/share/qemu
 OUTPUT = ./Output
 #=Qemu
 QARGS = -bios ${OVMF_PATH}/OVMF.fd
@@ -40,15 +40,22 @@ else
 	CC = gcc
 endif
 EFI_CC = ${CC}
+#=ASM
+AS = nasm
+AS_FLAGS = -g -Fdwarf -felf64
 #=Flags
 CFLAGS = -Wno-format -Wno-unused-variable -Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-implicit-function-declaration -ffreestanding -mcmodel=large -m64 -fno-pic -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -c -ggdb
 EFI_CFLAGS = -fpic -ffreestanding -fno-stack-protector -fno-stack-check -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -Wno-packed-bitfield-compat -c
 LD_FLAGS = -m elf_x86_64 -nostdlib -T ${OTHER_PATH}/linker.ld
 EFI_LD_FLAGS = -shared -Bsymbolic -L${EFI_PATH}/lib -L${EFI_PATH}/gnuefi -T${EFI_PATH}/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/crt0-efi-x86_64.o
 #=Include
-INCLUDE = -I./Headers \
+INCLUDE_0 := $(shell cd ./Headers && find . -type d)
+#INCLUDE := $(subst ./,-I./Headers/,$(INCLUDE_0))
+INCLUDE = -I./Headers/IO \
+		  -I./Headers/Memory \
 		  -I./Headers/System \
-		  -I./Headers/Memory
+		  -I./Headers/libc/std
+
 EFI_INCLUDE = -I${EFI_PATH}/Include -I./Boot/Include $(INCLUDE)
 #=Files
 CS_0 := $(shell find . -path ./Boot -prune -o -path ./libc -prune -o -name *.c)
@@ -59,9 +66,18 @@ EF_0 := $(shell find . -path ./Kernel -prune -o -path ./libc -prune -o -name *.c
 EF_1 := $(subst ./Kernel, ,$(EF_0))
 EF_2 := $(subst ./libc, ,$(EF_1))
 EF := $(subst .c,_efi.o,$(EF_2))
+#ASM
+AS_0 := $(shell find . -path ./Kernel -prune -o -path ./libc -prune -o -name *.asm)
+AS_1 := $(subst ./Kernel, ,$(AS_0))
+AS_2 := $(subst ./libc, ,$(AS_1))
+AF := $(subst .asm,_asm.o,$(AS_2))
 #=Rules
+#ASM
+%_asm.o: $(notdir %.asm)
+	${AS} ${AS_FLAGS} ./$< -o ${OUTPUT}/$(subst Assembly/,,$@)
+#C
 %.o: $(notdir %.c)
-	${CC} ${CFLAGS} ${INCLUDE} ./$< -o $@
+	${CC} ${CFLAGS} ${INCLUDE} ./$< -o ${OUTPUT}/$(subst Kernel/,,$@)
 %_efi.o: $(notdir %.c)
 	${EFI_CC} ${EFI_CFLAGS} ${EFI_INCLUDE} ./$< -o ${OUTPUT}/$@
 #=Linker
@@ -73,7 +89,7 @@ all: efi $(CF) mov compile iso hdd hdw clean
 
 #EFI
 
-efi: $(EF)
+efi: $(EF) $(AF)
 	cp ${EFI_PATH}/lib/data.o ${OUTPUT}/Boot/data.o
 	${EFI_LINKER} ${EFI_LD_FLAGS} ${OUTPUT}/Boot/*.o -o ${OUTPUT}/Boot/boot.so -lgnuefi -lefi
 	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-x86_64 --subsystem=10 ${OUTPUT}/Boot/boot.so ${OUTPUT}/Boot/RoverOS.efi
@@ -127,7 +143,6 @@ hdd:
 	mmd -i hdd.img ::/EFI
 	mcopy -i hdd.img ${OUTPUT}/RoverOS.bin ::/Binaries/
 	mcopy -i hdd.img ${OUTPUT}/RoverOS.bin ::/
-	mcopy -i hdd.img ./HDD/test.txt ::/test.txt
 	mcopy -i hdd.img ${OUTPUT}/Boot/RoverOS.efi ::/EFI/
 
 reset: mov clean

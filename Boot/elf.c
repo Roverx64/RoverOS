@@ -2,7 +2,7 @@
 #include <efilib.h>
 #include "types.h"
 #include "boot.h"
-#include "relf.h"
+#include "elf.h"
 #include "functions.h"
 
 uintptr *ldbuffer = NULL;

@@ -70,7 +70,3 @@ struct vspace{
     struct pdpe *pdpe;
     struct pde *pde;
 }__attribute__((packed));
-
-#define GET_PDE(v) (v>>21)&0x1FF
-#define GET_PDPE(v) (v>>30)&0x1FF
-#define GET_PML(v) (v>>39)&0x1FF
