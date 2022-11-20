@@ -1,7 +1,7 @@
 #pragma once
 
 #include <efidef.h>
-#include "stdint.h"
+#include "types.h"
 #include "boot.h"
 
 //File structure for my convienence
