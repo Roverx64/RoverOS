@@ -11,18 +11,12 @@ OTHER_PATH = ./Resources
 OVMF_PATH = /usr/share/qemu
 OUTPUT = ./Output
 #=Qemu
-QARGS = -bios ${OVMF_PATH}/OVMF.fd
-QARGS += -m 2G
-QARGS += -d cpu_reset
-QARGS += -D ${OTHER_PATH}/qemu.log
-QARGS += -cdrom ./RoverOS.iso
-QARGS += -serial file:${OTHER_PATH}/RoverOS.log
-QARGS += -monitor stdio
-QARGS += -usb
-QARGS += -device ahci,id=ahci
+QARGS = -bios ${OVMF_PATH}/OVMF.fd -m 2G -d cpu_reset
+QARGS += -D ${OTHER_PATH}/qemu.log -cdrom ./RoverOS.iso
+QARGS += -serial file:${OTHER_PATH}/RoverOS.log -monitor stdio
+QARGS += -usb -device ahci,id=ahci
 QARGS += -drive format=raw,file=hdd.img,id=hddi
-QARGS += -rtc base=utc
-QARGS += -no-reboot
+QARGS += -rtc base=utc -no-reboot
 ifeq (${USE_GDB}, 1)
 QARGS += -s -S
 endif
@@ -34,12 +28,11 @@ endif
 
 #===Non=Configurable===#
 #=GCC
-ifeq ("$(wildcard $("$$HOME/opt/cross/bin/x86_64-elf-gcc"))","")
-	CC = "$$HOME/opt/cross/bin/x86_64-elf-gcc"
+ifneq ("$(shell which x86_64-elf-gcc)","")
+CC = x86_64-elf-gcc
 else
-	CC = gcc
+CC = gcc
 endif
-EFI_CC = ${CC}
 #=ASM
 AS = nasm
 AS_FLAGS = -g -Fdwarf -felf64
@@ -49,47 +42,36 @@ EFI_CFLAGS = -fpic -ffreestanding -fno-stack-protector -fno-stack-check -fshort-
 LD_FLAGS = -m elf_x86_64 -nostdlib -T ${OTHER_PATH}/linker.ld
 EFI_LD_FLAGS = -shared -Bsymbolic -L${EFI_PATH}/lib -L${EFI_PATH}/gnuefi -T${EFI_PATH}/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/crt0-efi-x86_64.o
 #=Include
-INCLUDE_0 := $(shell cd ./Headers && find . -type d)
-#INCLUDE := $(subst ./,-I./Headers/,$(INCLUDE_0))
-INCLUDE = -I./Headers/IO \
-		  -I./Headers/Memory \
-		  -I./Headers/System \
-		  -I./Headers/libc/std
-
+INCLUDE := $(subst ./,-I./,$(wildcard ./Headers/*) $(wildcard ./Headers/libc/*))
 EFI_INCLUDE = -I${EFI_PATH}/Include -I./Boot/Include $(INCLUDE)
 #=Files
-CS_0 := $(shell find . -path ./Boot -prune -o -path ./libc -prune -o -name *.c)
-CS_1 := $(subst ./Boot, ,$(CS_0))
-CS_2 := $(subst ./libc, ,$(CS_1))
-CF := $(subst .c,.o,$(CS_2))
-EF_0 := $(shell find . -path ./Kernel -prune -o -path ./libc -prune -o -name *.c)
-EF_1 := $(subst ./Kernel, ,$(EF_0))
-EF_2 := $(subst ./libc, ,$(EF_1))
-EF := $(subst .c,_efi.o,$(EF_2))
-#ASM
-AS_0 := $(shell find . -path ./Kernel -prune -o -path ./libc -prune -o -name *.asm)
-AS_1 := $(subst ./Kernel, ,$(AS_0))
-AS_2 := $(subst ./libc, ,$(AS_1))
-AF := $(subst .asm,_asm.o,$(AS_2))
+EFI_FILES := $(subst .c,_efi.o,$(wildcard ./Boot/*.c))
+C_FILES := $(subst .c,_kernel.o,$(wildcard ./Kernel/*.c))
+LIBC_FILES := $(subst .c,_libc.o,$(wildcard ./libc/**/*.c))
+ASE_FILES := $(subst .asm,_asme.o,$(wildcard ./Boot/**/*.asm))
 #=Rules
 #ASM
-%_asm.o: $(notdir %.asm)
+%_asme.o: $(notdir %.asm)
 	${AS} ${AS_FLAGS} ./$< -o ${OUTPUT}/$(subst Assembly/,,$@)
 #C
-%.o: $(notdir %.c)
+%_kernel.o: $(notdir %.c)
 	${CC} ${CFLAGS} ${INCLUDE} ./$< -o ${OUTPUT}/$(subst Kernel/,,$@)
+%_libc.o: $(notdir %.c)
+	${CC} ${CFLAGS} ${INCLUDE} ./$< -o ${OUTPUT}/$(subst libc/,,$@)
 %_efi.o: $(notdir %.c)
-	${EFI_CC} ${EFI_CFLAGS} ${EFI_INCLUDE} ./$< -o ${OUTPUT}/$@
+	${CC} ${EFI_CFLAGS} ${EFI_INCLUDE} ./$< -o ${OUTPUT}/$@
 #=Linker
 LINKER = ld
 EFI_LINKER = ${LINKER}
+#=Internal use
+CLN = ''
 
-all: efi $(CF) mov compile iso hdd hdw clean
+all: efi compile iso hdd hdw clean
 	${EMULATOR} ${QARGS}
 
 #EFI
 
-efi: $(EF) $(AF)
+efi: ens $(EFI_FILES) $(ASE_FILES)
 	cp ${EFI_PATH}/lib/data.o ${OUTPUT}/Boot/data.o
 	${EFI_LINKER} ${EFI_LD_FLAGS} ${OUTPUT}/Boot/*.o -o ${OUTPUT}/Boot/boot.so -lgnuefi -lefi
 	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-x86_64 --subsystem=10 ${OUTPUT}/Boot/boot.so ${OUTPUT}/Boot/RoverOS.efi
@@ -102,7 +84,7 @@ hdw:
 	cp ${OUTPUT}/Boot/RoverOS.efi ./HDD/RoverOS.efi
 	cp ${OUTPUT}/RoverOS.bin ./HDD/Binaries/RoverOS.bin
 	cp ${OUTPUT}/RoverOS.bin ./HDD/RoverOS.bin
-	cp -r ./HDD/* ${HDD_PATH}
+	@$(if $(wildcard ${HDD_PATH}),cp -r ./HDD/* '${HDD_PATH}';echo 'Copied files',echo 'Please check your HDD_PATH or check that the partition is mounted')
     endif
 
 iso:
@@ -116,25 +98,43 @@ iso:
 mov:
 	$(shell find ./Kernel/ -name *.o -exec mv {} ${OUTPUT} \;)
 
-compile:
+compile: $(C_FILES) mov
 	${LD} ${LD_FLAGS} ${OUTPUT}/*.o -o ${OUTPUT}/RoverOS.bin
 	${LD} ${LD_FLAGS} ${OUTPUT}/*.o -o ${OUTPUT}/RoverOS.o
 	objcopy --only-keep-debug ${OUTPUT}/RoverOS.o ${OTHER_PATH}/RoverOS.sym
 
 #Tools
 
-required: dir
-	mkdir ${EFI_PATH}/Include
+#=Ensure 'make required' was run
+ens:
+	@$(if $(wildcard ${EFI_PATH}),,echo '[!]Please run 'make required'';echo '[!]This next error is intentional';invalidCommandExit -ok)
+	@echo "Passed test"
+
+check:
+	@$(if $(shell which ${AS}),echo '${AS} is installed',echo '[!]Please install ${AS}')
+	@$(if $(shell which ${CC}),echo '${CC} is installed',echo '[!]Please install GCC or an x64 Cross Compiler')
+	@$(if $(shell which ${EMULATOR}),echo '${EMULATOR} is installed', echo '[!]Please install ${EMULATOR}')
+	@$(if $(wildcard ${OVMF_PATH}/OVMF.fd),echo 'Found ${OVMF_PATH}/OVMF.fd',$(if $(wildcard /usr/share/qemu/OVMF.fd),echo '[!]Please set OVMF_PATH to /usr/share/qemu',echo "[!]Found no OVMF file, please set the path manually"))
+
+
+dir:
+	$(if $(wildcard ${EFI_PATH}),,$(shell mkdir ${EFI_PATH}))
+	$(if $(wildcard ${OUTPUT}),,$(shell mkdir ${OUTPUT}))
+	$(if $(wildcard ${OUTPUT}/Boot),,$(shell mkdir ${OUTPUT}/Boot))
+	$(if $(wildcard ${OUTPUT}/libc),,$(shell mkdir ${OUTPUT}/libc))
+
+required: check dir
+    ifneq ("$(wildcard ${GNU_EFI_PATH})","")
+	$(if $(wildcard ${EFI_PATH}/Include),,mkdir ${EFI_PATH}/Include)
 	cp ${GNU_EFI_PATH}/inc/*.h ${EFI_PATH}/Include
 	cp -r ${GNU_EFI_PATH}/inc/x86_64 ${EFI_PATH}/Include
 	cp -r ${GNU_EFI_PATH}/x86_64/lib ${EFI_PATH}
 	cp -r ${GNU_EFI_PATH}/x86_64/gnuefi ${EFI_PATH}
 	cp ${GNU_EFI_PATH}/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/elf_x86_64_efi.lds
-
-clean:
-	$(shell rm -r ${OUTPUT}/*.o)
-	$(shell rm -r ${OUTPUT}/Boot/*.o)
-	$(shell rm -r ${OUTPUT}/Boot/*.so)
+    else
+	@echo "[!]Please set GNU_EFI_PATH to a valid absolute path"
+    endif
+	@echo "[!]Please fix any errors, that may exist, mentioned above marked with '[!]'"
 
 hdd:
 	dd if=/dev/zero of=hdd.img bs=1M count=50
@@ -145,20 +145,19 @@ hdd:
 	mcopy -i hdd.img ${OUTPUT}/RoverOS.bin ::/
 	mcopy -i hdd.img ${OUTPUT}/Boot/RoverOS.efi ::/EFI/
 
+clean:
+	$(shell rm -r ${OUTPUT}/*.o)
+	$(shell rm -r ${OUTPUT}/Boot/*.o)
+	$(shell rm -r ${OUTPUT}/Boot/*.so)
+
 reset: mov clean
-	if test -d ${EFI_PATH}; then rm -r ${EFI_PATH}; fi
-	if test -d ${OUTPUT}; then rm -r ${OUTPUT}; fi
-	if test ${OTHER_PATH}/RoverOS.sym; then rm ${OTHER_PATH}/RoverOS.sym; fi
-	if test ${OTHER_PATH}/Bootloader.sym; then rm ${OTHER_PATH}/Bootloader.sym; fi
-	if test ${OTHER_PATH}/RoverOS.log; then rm ${OTHER_PATH}/RoverOS.log; fi
-	if test ${OTHER_PATH}/qemu.log; then rm ${OTHER_PATH}/qemu.log; fi
-	if test ./hdd.img; then rm ./hdd.img; fi
-	if test -d ./ISO; then rm -r ./ISO; fi
-	if test -d ./HDD; then rm -r ./HDD; fi
-	if test ./RoverOS.iso; then rm ./RoverOS.iso; fi
+	$(if $(wildcard ${EFI_PATH}),rm -r ${EFI_PATH},)
+	$(if $(wildcard ${OUTPUT}),rm -r ${OUTPUT},)
+	$(if $(wildcard ${OTHER_PATH}/*.sym),rm $(wildcard ${OTHER_PATH}/*.sym),)
+	$(if $(wildcard ${OTHER_PATH}/*.log),rm $(wildcard ${OTHER_PATH}/*.log),)
+	$(if $(wildcard ./*.img),rm $(wildcard ./*.img),)
+	$(if $(wildcard ./ISO),rm -r ./ISO,)
+	$(if $(wildcard ./HDD),rm -r ./HDD,)
+	$(if $(wildcard ./*.iso), rm $(wildcard ./*.iso),)
 
-dir:
-	if ! test -d ${EFI_PATH}; then mkdir ${EFI_PATH}; fi
-	if ! test -d ${OUTPUT}/Boot; then mkdir -p ${OUTPUT}/Boot; fi
-
-.PHONY: required clean reset mov hdw
+.PHONY: check required dir reset mov hdw ens

@@ -30,6 +30,7 @@ These are things I will likely add in the future
 * `ld`
 * `ovmf` (I suggest looking up how to get ovmf for your distro)
 * `Make`
+* `nasm`
 * `mtools`
 * `xorriso`
 * `gnu-efi` (This will have to be compiled from source)
@@ -47,7 +48,7 @@ Note: You may have to chown this file to allow Qemu to use it
 #### Gnu-efi
 * cd to your Documents folder
 * download gnu-efi with `git clone https://git.code.sf.net/p/gnu-efi/code gnu-efi`
-* cd and run `make`
+* cd into gnu-efi and run `make`
 #### RoverOS
 1. Ensure all vars are set as required above
 2. cd to the base of the RoverOS folder (where the Makefile is)
@@ -78,8 +79,9 @@ menuentry "RoverOS" {
 }
 ```
 This file is at `/etc/grub.d/` for Ubuntu  
-6. update grub config via command (Search up how to do it for your distro)  
-7. Reboot and the option 'RoverOS' should be there
+1. update grub config via command (Search up how to do it for your distro)  
+2. Reboot and the option 'RoverOS' should be there
 
 # Misc
 * `make reset` cleans the directory to the default state
+* `make check` checks for compilers and OVMF
