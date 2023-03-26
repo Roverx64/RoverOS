@@ -32,8 +32,8 @@ void kmain(struct bootInfo *kinf){
     kwindow.Xscale = 2;
     kwindow.Yscale = 2;
     drawString(&kwindow,60,60,&testFont,"ABCDEFGHIJKLMN");
-    initRamdisk((void*)kinf->load.rdptr);
     initPMM(kinf);
+    initRamdisk((void*)kinf->load.rdptr);
     //initACPI();
     end:
     for(;;){asm("hlt");}

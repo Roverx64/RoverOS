@@ -15,5 +15,5 @@ typedef struct mmapEntry{
     uint16 type;
     uint64 phys; //Should generally be identity mapped
     uint64 virt;
-    uint16 pages;
+    uint32 bytes;
 }mmapEntry;

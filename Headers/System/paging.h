@@ -68,3 +68,9 @@ struct pde{
     uint16 avl1 : 11;
     uint8 nx : 1;
 }__attribute__((packed));
+
+typedef struct{
+    struct pml4e *pml;
+}pageSpace __attribute__((packed));
+
+extern void getPageInfo(pageSpace *space, void *dest, uint64 virt);

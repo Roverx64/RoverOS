@@ -16,8 +16,16 @@ void *getMemory(uint64 size){
     uint64 ptr = 0x0;
     //Fails on real hardware for some reason
     EFI_STATUS status = uefi_call_wrapper(BS->AllocatePages,4,AllocateAnyPages,EfiLoaderData,size/EFI_PAGE_SIZE,&ptr);
-    if(status == EFI_OUT_OF_RESOURCES){Print(L"Failed to find 0x%llx free bytes\n",size); return NULL;}
-    if(status != EFI_SUCCESS){Print(L"AllocatePages failed\n");}
+    if(status == EFI_OUT_OF_RESOURCES){goto retry;}
+    if(status != EFI_SUCCESS){goto retry;}
+    goto end;
+    retry:
+    ptr = (uint64)AllocatePool(size); //Better than nothing
+    if(ptr == 0x0){
+        Print(L"Failed to find 0x%llx free bytes\n",size);
+        return NULL;
+    }
+    end:
     SetMem((void*)ptr,size,0x0);
     return (void*)ptr;
 }
@@ -29,6 +37,7 @@ EFI_STATUS getMmap(){
     Print(L"Got MMAP [0x%llx|0x%llx entries|0x%llx dSz|0x%lx Ver]\n",(uint64)descStart,descEntries,descSz,descVer);
     kmmapBase = getMemory(sizeof(mmapEntry)*descEntries);
     if(kmmapBase == NULL){Print(L"Failed to find space for kmmap\n"); return !EFI_SUCCESS;}
+    kinf.mem.ptr = kmmapBase;
     return EFI_SUCCESS;
 }
 
@@ -48,9 +57,11 @@ void mapMMAP(){
     uint16 mType = 0x0;
     uint64 sz = 0x0;
     uint64 usable = 0x0;
+    uint16 entryn;
     for(int i = 0; i < descEntries; ++i){
         map = false;
         sz += descriptor->NumberOfPages*EFI_PAGE_SIZE;
+        ++entryn;
         //Print(L"0x%llx->0x%llx 0x%llx pgs\n",(uint64)descriptor->PhysicalStart,(uint64)descriptor->VirtualStart,(uint64)descriptor->NumberOfPages);
         switch(descriptor->Type){
             case EfiMemoryMappedIOPortSpace:
@@ -140,12 +151,20 @@ void mapMMAP(){
         if(map){
             mapPages(descriptor->PhysicalStart,descriptor->PhysicalStart,DESC_SZ(descriptor)/PAGE_SZ,write,user,nx);
         }
-        entry[i].type = mType;
-        entry[i].phys = descriptor->PhysicalStart;
-        entry[i].virt = descriptor->PhysicalStart;
-        entry[i].pages = DESC_SZ(descriptor)/PAGE_SZ;
+        if(entry[entryn-1].type == mType){
+            --entryn;
+            //Condense block to avoid fragmentation
+            entry[entryn].bytes += DESC_SZ(descriptor);
+            goto next;
+        }
+        entry[entryn].type = mType;
+        entry[entryn].phys = descriptor->PhysicalStart;
+        entry[entryn].virt = descriptor->PhysicalStart;
+        entry[entryn].bytes = DESC_SZ(descriptor);
+        next:
         descriptor = NEXT_DESC(descriptor,descSz);
     }
-    kinf.mem.entries = descEntries;
+    kinf.mem.entries = entryn;
+    kinf.mem.usableMem = usable;
     kinf.mem.totalMem = sz;
 }

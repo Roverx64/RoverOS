@@ -21,6 +21,7 @@
         "string.h": "c",
         "boottypes.h": "c",
         "interrupt.h": "c",
-        "registers.h": "c"
+        "registers.h": "c",
+        "paging.h": "c"
     }
 }

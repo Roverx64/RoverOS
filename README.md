@@ -12,7 +12,6 @@ Things I will try to add in the next update
 * New stack
 * Cleaned up/Simplier makefile
 * Cleaned up directory structure
-* Fixed UEFI mem allocator
 * More in-depth fault handlers
 * phys mem manager
 

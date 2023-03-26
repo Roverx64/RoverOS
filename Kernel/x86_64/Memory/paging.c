@@ -4,6 +4,27 @@
 
 struct pml4e *kpml;
 
+//Returns a copy of a requested page
+//If pde doesn't exist, then a1 will be set to 0
+void getPageInfo(pageSpace *space, void *dest, uint64 virt){
+    if(space == NULL || dest == NULL){return;}
+    uint64 *pdeDest = (uint64*)dest;
+    virt = KALIGN(virt);
+    uint32 pmlEntry = GET_PML_ENTRY(virt);
+    uint32 pdpeEntry = GET_PDPE_ENTRY(virt);
+    uint32 pdeEntry = GET_PDE_ENTRY(virt);
+    if(space->pml[pmlEntry].addr == 0x0){goto nexist;}
+    struct pdpe *pdpe = (struct pdpe*)BASE_TO_PTR(space->pml[pmlEntry].addr);
+    if(pdpe[pdpeEntry].addr == 0x0){goto nexist;}
+    uint64 *pde = (uint64*)BASE_TO_PTR(pdpe[pdpeEntry].addr);
+    //Every entry is 8 bytes long
+    pdeDest[0] = pde[pdeEntry];
+    return;
+    nexist:
+    ((struct pde*)pdeDest)->a1 = 0;
+    return;
+}
+
 void mapPage(uint64 phys, uint64 virt, bool make, bool write, bool user, bool nx){
     phys = KALIGN(phys);
     virt = KALIGN(virt);
