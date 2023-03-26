@@ -13,7 +13,6 @@ Things I will try to add in the next update
 * Cleaned up/Simplier makefile
 * Cleaned up directory structure
 * More in-depth fault handlers
-* phys mem manager
 
 ### Planned features
 These are things I will likely add in the future
