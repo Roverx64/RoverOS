@@ -21,7 +21,7 @@ void getPageInfo(pageSpace *space, void *dest, uint64 virt){
     pdeDest[0] = pde[pdeEntry];
     return;
     nexist:
-    ((struct pde*)pdeDest)->a1 = 0;
+    ((struct pde*)pdeDest)->ps = 0;
     return;
 }
 
@@ -52,7 +52,7 @@ void mapPage(uint64 phys, uint64 virt, bool make, bool write, bool user, bool nx
     pde[pdeEntry].write = write;
     pde[pdeEntry].user = user;
     pde[pdeEntry].nx = nx;
-    pde[pdeEntry].a1 = 1; //PS Bit
+    pde[pdeEntry].ps = 1; //PS Bit
     pde[pdeEntry].addr = GET_PHYS_BASE(phys);
 }
 

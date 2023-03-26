@@ -9,6 +9,7 @@
 #include "pmm.h"
 #include "idt.h"
 #include "gdt.h"
+#include "palloc.h"
 
 window kwindow;
 extern void loadStack();
@@ -33,8 +34,11 @@ void kmain(struct bootInfo *kinf){
     kwindow.Yscale = 2;
     drawString(&kwindow,60,60,&testFont,"ABCDEFGHIJKLMN");
     initPMM(kinf);
+    void *ptr = palloc(0x200000);
+    kdebug(DINFO,"Palloc returned 0x%llx\n",(uint64)ptr);
+    pfree(ptr);
     initRamdisk((void*)kinf->load.rdptr);
-    //initACPI();
+    initACPI();
     end:
     for(;;){asm("hlt");}
 }

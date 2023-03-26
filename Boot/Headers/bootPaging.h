@@ -66,7 +66,7 @@ struct pde{
     uint8 pcd : 1;
     uint8 accessed : 1;
     uint8 dirty : 1;
-    uint8 a1 : 1;
+    uint8 ps : 1;
     uint8 global : 1;
     uint8 avl : 3;
     uint8 pat : 1;

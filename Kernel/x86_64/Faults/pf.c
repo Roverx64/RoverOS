@@ -22,7 +22,7 @@ intHandler pageFault(registers reg){
     else{kdebug(DNONE,"User\n");}
     struct pde page;
     getPageInfo((pageSpace*)cr3,&page,faultAddr);
-    uint8 exists = page.a1;
+    uint8 exists = page.ps;
     if(!exists){goto cause;}
     kdebug(DNONE,"PHYS=0x%llx\n",page.addr);
     kdebug(DNONE,"FLAGS=");

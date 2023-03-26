@@ -2,7 +2,7 @@
 #=Options
 USE_GDB = 0
 USE_HDD = 0
-USE_KVM = 0
+USE_KVM = 1
 #=Target
 #x86_64
 #aarch64 (Not supported yet)
@@ -32,6 +32,7 @@ AARGS += -serial file:${OTHER_PATH}/RoverOS.log
 #=Emulators
 AEMU = qemu-system-aarch64
 XEMU = qemu-system-x86_64
+KEMU = kvm
 #===Non=Configurable===#
 #Emu
 ifeq (${TARGET},x86_64)
@@ -41,10 +42,6 @@ else ifeq (${TARGET},aarch64)
 EMULATOR = ${AEMU}
 QARGS = ${AARGS}
 else
-EMULATOR = ${KEMU}
-QARGS = ${KARGS}
-endif
-ifeq (${USE_KVM},1)
 EMULATOR = kvm
 QARGS = ${XARGS}
 endif

@@ -41,7 +41,7 @@ void mapPage(uint64 phys, uint64 virt, bool w, bool u, bool nx){
     if(pdpe[pdpeEntry].addr == 0x0){pdpe[pdpeEntry].addr = GET_ADDR_BASE(newPde());}
     struct pde *pde = (struct pde*)BASE_TO_PTR(pdpe[pdpeEntry].addr);
     pde[pdeEntry].present = true;
-    pde[pdeEntry].a1 = 1;
+    pde[pdeEntry].ps = 1;
     //Page was set to write, so leave it set to avoid a UEFI page fault
     //The C kernel will fix this later (Read NOTE below)
     if(!pde[pdeEntry].write){pde[pdeEntry].write = w;}
