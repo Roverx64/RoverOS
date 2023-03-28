@@ -30,7 +30,7 @@ These are things I will likely add in the future
 * ARM CPUs (for now)
 
 ### Issues
-* Current page map triple faults if testMapping() is not used
+* Shift key acts as an enter key on real hardware
 * Aligning .text to 2MB causes the kernel to not call other funcs properly
 * dumpPMAP/dumpEFI_PMAP command stops reporting accurate info with higher addresses
 
