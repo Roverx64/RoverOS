@@ -2,5 +2,5 @@
 
 #include <stdint.h>
 
-extern void *palloc(uint64 sz);
+extern void *palloc();
 extern void pfree(void *ptr);

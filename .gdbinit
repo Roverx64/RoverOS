@@ -18,7 +18,5 @@ x/gx $arg0
 end
 set pagination off
 layout asm
-break kmain
-break loadGDT
-break initGDT
+break initACPI
 continue

@@ -67,7 +67,7 @@ uint64 bootstrapKernel(EFI_HANDLE ImageHandle){
     EFI_STATUS status = EFI_SUCCESS;
     status = openVolume(&kfile,ImageHandle);
     if(EFI_ERROR(status)){Print(L"Failed to open volume\n"); return 0x0;}
-    status = openFile(&kfile,L"RoverOS.bin",EFI_FILE_MODE_READ,EFI_FILE_READ_ONLY);
+    status = openFile(&kfile,L"Fortuna.bin",EFI_FILE_MODE_READ,EFI_FILE_READ_ONLY);
     if(EFI_ERROR(status)){Print(L"Failed to open kernel file\n"); return status;}
     status = getFileInfo(&kfile);
     if(EFI_ERROR(status)){Print(L"Failed to get file info\n"); return status;}

@@ -14,6 +14,7 @@
 window kwindow;
 extern void loadStack();
 extern void initFaultHandlers();
+extern void initACPI(struct bootInfo *kinf);
 
 void kmain(struct bootInfo *kinf){
     if(kinf->magic != BOOTINFO_MAGIC){
@@ -34,11 +35,8 @@ void kmain(struct bootInfo *kinf){
     kwindow.Yscale = 2;
     drawString(&kwindow,60,60,&testFont,"ABCDEFGHIJKLMN");
     initPMM(kinf);
-    void *ptr = palloc(0x200000);
-    kdebug(DINFO,"Palloc returned 0x%llx\n",(uint64)ptr);
-    pfree(ptr);
     initRamdisk((void*)kinf->load.rdptr);
-    initACPI();
+    initACPI(kinf);
     end:
     for(;;){asm("hlt");}
 }

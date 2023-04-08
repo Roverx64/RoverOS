@@ -8,14 +8,14 @@
 #include <string.h>
 
 uint32 pmmEntries;
-uint64 *pagemap;
+uint64 *physmap;
 
 void setPMMBit(uint64 phys, bool free){
-    phys = KALIGN(phys); //Get pagemap entry
+    phys = KALIGN(phys); //Get physmap entry
     uint32 pgentry = GET_PMM_ENTRY(phys);
     uint32 subentry = GET_PMM_SUBENTRY(phys);
-    if(free){pagemap[pgentry] ^= (0x1<<subentry);}
-    else{pagemap[pgentry] |= (0x1<<subentry);}
+    if(free){physmap[pgentry] ^= (0x1<<subentry);}
+    else{physmap[pgentry] |= (0x1<<subentry);}
 }
 
 void initMmapEntry(mmapEntry *entry){
@@ -42,14 +42,14 @@ void initPMM(struct bootInfo *kinf){
     mmapEntry *mmap = (mmapEntry*)kinf->mem.ptr;
     pmmEntries = (kinf->mem.totalMem/PAGE_SZ)/64;
     uint64 sz = pmmEntries*sizeof(uint64);
-    //Find free spot for pagemap
+    //Find free spot for physmap
     for(int i = 0; i < kinf->mem.entries; ++i){
         if(mmap[i].type == MMAP_TYPE_FREE && mmap[i].bytes >= sz){
-            pagemap = (uint64*)mmap[i].phys;
+            physmap = (uint64*)mmap[i].phys;
             break;
         }
     }
-    memset(pagemap,sz,0x0);
+    memset(physmap,sz,0x0);
     //Initilize all of mem
     bool set = false;
     for(uint32 i = 0; i < kinf->mem.entries; ++i){
@@ -59,17 +59,17 @@ void initPMM(struct bootInfo *kinf){
 }
 
 //Returns a pointer to a phys page
-void *palloc(uint64 sz){
+void *palloc(){
     uint64 test = 0xFFFF;
     uint16 shift = 0x0;
     uint16 word = 0x0;
     uint16 pos = 0x0;
     int i = 0;
     for(; i < pmmEntries; ++i){
-        if(pagemap[i] == 0xFFFFFFFFFFFFFFFF){continue;} //All pages allocated
+        if(physmap[i] == 0xFFFFFFFFFFFFFFFF){continue;} //All pages allocated
         //Shift until free bit is found
-        while(pagemap[i]&(test<<shift) == test){shift+=16;}
-        word = (pagemap[i]&(test<<shift))>>shift;
+        while(physmap[i]&(test<<shift) == test){shift+=16;}
+        word = (physmap[i]&(test<<shift))>>shift;
         //Find free bit
         int bit = 0;
         for(;bit < 16;++bit){
