@@ -62,6 +62,10 @@ QARGS += -usb -device ahci,id=ahci
 QARGS += -drive format=raw,file=hdd.img,id=hddi
 QARGS += -rtc base=utc -monitor stdio
 endif
+ifeq (${gdb},1)
+$(info [!]Using GDB)
+QARGS += -s -S
+endif
 #=====Include====#
 INCLUDE := $(subst ./,-I./,$(wildcard ./Headers/*) $(wildcard ./Headers/libc/*) $(wildcard ./Headers/klib/*))
 EFI_INCLUDE = -I${EFI_PATH}/Include -I./Bootloader/Include -I./Bootloader/Headers/${target_arch} -I./Headers/System -I./Headers/Memory

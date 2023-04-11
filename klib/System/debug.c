@@ -36,6 +36,10 @@ void writeHex(uint64 num,uint16 bytes,bool caps){
     if(leading){writeByte(KDEBUG_PORT,'0');}
 }
 
+void kprintChar(char ch){
+    writeByte(KDEBUG_PORT,ch);
+}
+
 void kdebug(const char *func, uint8 level, const char *str, ...){
     uint8 sizeModifier = 0; //u8 1, u32 4, u64 8
     va_list args;

@@ -14,3 +14,4 @@
 #define DNONE __FUNCTION__, DLEVEL_NONE
 
 extern void kdebug(const char *func, uint8 level, const char *str, ...);
+extern void kprintChar(char ch);

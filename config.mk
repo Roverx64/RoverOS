@@ -18,3 +18,5 @@ OVMF_PATH = /usr/share/qemu
 EFI_PATH = ./Bootloader/Resources
 OTHER_PATH = ./Other
 HDD_PATH = /media/rover/6297-2783
+#Other
+EXPERIMENTAL_FLAGS = 
