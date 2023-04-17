@@ -1,27 +1,39 @@
 #pragma once
 #include <stdint.h>
 
-#define WINDOW_SYSTEM_NAME "Graphite"
-#define WINDOW_SYSTEM_VERSION_MAJOR 0
-#define WINDOW_SYSTEM_VERSION_MINOR 2
+#define UI_SYSTEM_NAME "Graphite"
+#define UI_SYSTEM_VERSION_MAJOR 0
+#define UI_SYSTEM_VERSION_MINOR 4
 
-#define WINDOW_BUFFER uint32
-#define WINDOW_XRES uint32
-#define WINDOW_YRES uint32
-#define WINDOW_SCALE uint16
-#define WINDOW_OBJECT uintptr
+#define UI_BUFFER uint32
+#define UI_RES uint32
+#define UI_POS uint32
+#define UI_ID uint8
+#define UI_SCALE uint16
+#define UI_OBJECT uintptr
+#define UI_COLOR uint32
+#define UI_TEXT char
 
-#define GUI_BUFFER_OFFSET()
+#define UI_BUFFER_OFFSET(buff,Xres,Xpos,Ypos) ((UI_BUFFER*)((uint32)buff+((Ypos*Xres)+Xpos)))
+
+struct objectCommon{
+    UI_ID id;
+    UI_RES Xres;
+    UI_RES Yres;
+    UI_POS Xpos; //Always 0 for a window
+    UI_POS Ypos; //Always 0 for a window
+};
 
 typedef struct window{
-    WINDOW_BUFFER *buffer;
-    WINDOW_XRES Xres;
-    WINDOW_YRES Yres;
-    WINDOW_SCALE Xscale;
-    WINDOW_SCALE Yscale;
-    WINDOW_OBJECT *objects;
+    struct objectCommon common;
+    UI_BUFFER *buffer;
+    UI_OBJECT *objects;
 }window;
 
-#define WINDOW_PTR window
-
-extern void drawBlock(window *win,uint32 color,uint32 Xs, uint32 Ys);
+typedef struct text{
+    struct objectCommon common;
+    UI_SCALE Xscale;
+    UI_SCALE Yscale;
+    UI_TEXT *text;
+    UI_COLOR color;
+}text;

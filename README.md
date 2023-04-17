@@ -10,6 +10,7 @@ RoverOS is named after my dog, and that is where my username comes from as well.
 Things I will try to add in the near future
 * Apple TTF support
 * PNG support
+* Basic GUI
 * New stack
 * More in-depth fault handlers
 * Completed aarch64 bootloader
@@ -28,6 +29,10 @@ These are things I will likely add in the future
 * CSM only UEFI machines
 * Non x64 (64 bit) CPUs
 * Aarch32 only CPUs
+
+### Screenshot (x86_64)
+![RoverOS-UEFI](https://user-images.githubusercontent.com/111342077/232359539-c0e2b337-8fb0-42e7-8936-c9a702981144.png)
+
 
 ### Known issues
 * Shift key acts as an enter key on real hardware with ASUS UEFI

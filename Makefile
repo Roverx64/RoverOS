@@ -62,6 +62,7 @@ QARGS += -usb -device ahci,id=ahci
 QARGS += -drive format=raw,file=hdd.img,id=hddi
 QARGS += -rtc base=utc -monitor stdio
 endif
+QARGS += ${EXPERIMENTAL_ARGS}
 ifeq (${gdb},1)
 $(info [!]Using GDB)
 QARGS += -s -S

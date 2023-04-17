@@ -44,5 +44,5 @@ struct bootInfo{
     struct gopInfo ui;
     struct loadInfo load;
     struct memInfo mem;
-    bi64 *xdstptr;
+    bi64 *xsdtptr;
 };

@@ -33,7 +33,7 @@ void parseTable(void *ptr){
 }
 
 void initACPI(struct bootInfo *kinf){
-    struct rsdp *rsdp = (struct rsdp*)kinf->xdstptr;
+    struct rsdp *rsdp = (struct rsdp*)kinf->xsdtptr;
     if(rsdp->signature != RSDP_SIGNATURE || rsdp->signature == XSDT_SIGNATURE){
         kdebug(DINFO,"Invalid ACPI signature 0x%llx\n",rsdp->signature);
         return;

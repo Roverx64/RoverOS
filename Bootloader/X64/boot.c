@@ -20,11 +20,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     if(getMmap() != EFI_SUCCESS){goto error;}
     if(initPaging() != EFI_SUCCESS){goto error;}
     //ACPI
-    Print(L"Getting xdst\n");
+    Print(L"Getting xsdt\n");
     EFI_GUID acpi = AcpiTableGuid;
-    status = LibGetSystemConfigurationTable(&acpi,(void**)&kinf.xdstptr);
-    if(EFI_ERROR(status)){Print(L"Failed to get xdst\n"); goto error;}
-    Print(L"Got xdst at 0x%llx\n",(uint64)kinf.xdstptr);
+    status = LibGetSystemConfigurationTable(&acpi,(void**)&kinf.xsdtptr);
+    if(EFI_ERROR(status)){Print(L"Failed to get xsdt\n"); goto error;}
+    Print(L"Got xsdt at 0x%llx\n",(uint64)kinf.xsdtptr);
     //Setup kernel
     uint64 entry = bootstrapKernel(ImageHandle);
     if(entry == 0x0){goto error;}
@@ -39,7 +39,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     setCR3();
     kinf.magic = BOOTINFO_MAGIC;
     kfunc jump = (kfunc)entry;
-    //Set stack
     jump(&kinf);
     //Loop forever
     for(;;){asm("hlt");}

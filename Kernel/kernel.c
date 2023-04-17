@@ -26,14 +26,14 @@ void kmain(struct bootInfo *kinf){
     initIDT();
     initFaultHandlers();
     kdebug(DINFO,"%s kernel loaded\n",(char*)KERNEL_NAME);
-    kdebug(DINFO,"Using %s windowing system\n",(char*)WINDOW_SYSTEM_NAME);
-    kwindow.buffer = (WINDOW_BUFFER*)kinf->ui.framebuffer;
+    kdebug(DINFO,"Using %s ui system\n",(char*)UI_SYSTEM_NAME);
+    initWindow(&kwindow,kinf->ui.Xres,kinf->ui.Yres);
+    kwindow.buffer = (UI_BUFFER*)kinf->ui.framebuffer;
     kwindow.objects = NULL;
-    kwindow.Xres = (WINDOW_XRES)kinf->ui.Xres;
-    kwindow.Yres = (WINDOW_YRES)kinf->ui.Yres;
-    kwindow.Xscale = 2;
-    kwindow.Yscale = 2;
-    drawString(&kwindow,60,60,&testFont,"ABCDEFGHIJKLMN");
+    //Test text obj
+    text txt;
+    initText(&kwindow,&txt,0xFFFFFF,2,2,30,30,10,10);
+    drawString(&kwindow,&txt,&testFont,"ABCDEFGHIJKLMNOPQRSTUVWXYZ");
     initPMM(kinf);
     initRamdisk((void*)kinf->load.rdptr);
     initACPI(kinf);
