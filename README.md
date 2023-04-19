@@ -49,7 +49,7 @@ Things needed for only the AMD64 architecture
 * `nasm`
 * `mtools`
 * `xorriso`
-* `gnu-efi` (This will have to be compiled from source)
+* `gnu-efi` (https://github.com/vathpela/gnu-efi is the default repo)
 * `qemu-system-x86_64`
 
 ### ARM requirements
@@ -68,14 +68,8 @@ Add to the makefile arguments to use them `make arch=DESIRED_ARCH <arg>=<value>`
 #### Setting vars
 Do not include the '' or "" unless specified and avoid adding a space or / after a variable  
 ##### Edit the `config.mk` file to set these vars
-* set `GNU_EFI_PATH` to the absolute path of the gnu-efi source directory  
-Example: `GNU_EFI_PATH = /home/rover/Documents/gnu-efi`
 * set `OVMF_PATH` to where your OVMF.fd file is (This is likely to be in `/usr/share/qemu`)  
 Example: `OVMF_PATH = /use/share/qemu`  
-#### Gnu-efi (x86_64 only)
-* cd to your Documents folder
-* download gnu-efi with `git clone https://git.code.sf.net/p/gnu-efi/code gnu-efi`
-* cd into gnu-efi and run `make`
 #### RoverOS
 1. Ensure all vars are set as required above
 2. cd to the base of the RoverOS folder (where the Makefile is)

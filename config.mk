@@ -12,7 +12,7 @@ A64_AS = as
 x64_LD = ld
 A64_LD = arm-none-eabi-ld
 #Paths
-GNU_EFI_PATH = /home/rover/Documents/gnu-efi
+GNU_EFI_REPO = https://github.com/vathpela/gnu-efi
 OUTPUT_PATH = ./Output
 OVMF_PATH = /usr/share/qemu
 EFI_PATH = ./Bootloader/Resources

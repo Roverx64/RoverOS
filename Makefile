@@ -154,17 +154,16 @@ check:
 	$(if $(wildcard ${OUTPUT_PATH}/Compiled),,$(shell mkdir ${OUTPUT_PATH}/Compiled))
 	$(if $(wildcard ${OUTPUT_PATH}/Kernel),,$(shell mkdir ${OUTPUT_PATH}/Kernel))
 #   #===GNU EFI====#
-    ifneq ("$(wildcard ${GNU_EFI_PATH})","")
-	@echo "[!]Copying gnuefi"
+	@echo "[!]Cloning gnuefi"
+	$(shell git clone ${GNU_EFI_REPO} ./gnu-efi)
+	@echo "[!]Building gnuefi"
+	cd ./gnu-efi && make
 	$(if $(wildcard ${EFI_PATH}/Include),,mkdir ${EFI_PATH}/Include)
-	cp ${GNU_EFI_PATH}/inc/*.h ${EFI_PATH}/Include
-	cp -r ${GNU_EFI_PATH}/inc/x86_64 ${EFI_PATH}/Include
-	cp -r ${GNU_EFI_PATH}/x86_64/lib ${EFI_PATH}
-	cp -r ${GNU_EFI_PATH}/x86_64/gnuefi ${EFI_PATH}
-	cp ${GNU_EFI_PATH}/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/elf_x86_64_efi.lds
-    else
-	@echo "[X]Please set GNU_EFI_PATH to a valid absolute path"
-    endif
+	cp ./gnu-efi/inc/*.h ${EFI_PATH}/Include
+	cp -r ./gnu-efi/inc/x86_64 ${EFI_PATH}/Include
+	cp -r ./gnu-efi/x86_64/lib ${EFI_PATH}
+	cp -r ./gnu-efi/x86_64/gnuefi ${EFI_PATH}
+	cp ./gnu-efi/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/elf_x86_64_efi.lds
 	@echo "[!]Please fix any errors, that may exist, mentioned above marked with '[X]'"
     endif
 
@@ -188,20 +187,21 @@ hdd:
     endif
 
 clean:
-	$(shell find . -name *.o -exec rm {} \;)
-	$(shell find . -name *.so -exec rm {} \;)
+	$(shell find . -path ./gnu-efi -prune -o -name '*.o' -exec rm {} \;)
+	$(shell find . -path ./gnu-efi -prune -o -name '*.so' -exec rm {} \;)
 	$(shell find . -name *.tmp -exec rm {} \;)
 	@echo "[!]Cleaned all object files"
 	$(if $(wildcard ${EFI_PATH}/Include),,mkdir ${EFI_PATH}/Include)
-	cp ${GNU_EFI_PATH}/inc/*.h ${EFI_PATH}/Include
-	cp -r ${GNU_EFI_PATH}/inc/x86_64 ${EFI_PATH}/Include
-	cp -r ${GNU_EFI_PATH}/x86_64/lib ${EFI_PATH}
-	cp -r ${GNU_EFI_PATH}/x86_64/gnuefi ${EFI_PATH}
-	cp ${GNU_EFI_PATH}/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/elf_x86_64_efi.lds
+	cp ./gnu-efi/inc/*.h ${EFI_PATH}/Include
+	cp -r ./gnu-efi/inc/x86_64 ${EFI_PATH}/Include
+	cp -r ./gnu-efi/x86_64/lib ${EFI_PATH}
+	cp -r ./gnu-efi/x86_64/gnuefi ${EFI_PATH}
+	cp ./gnu-efi/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/elf_x86_64_efi.lds
 	@echo "[!]Copied back gnuefi files"
 
 reset: clean
 	$(if $(wildcard ${EFI_PATH}),rm -r ${EFI_PATH},)
+	$(if $(wildcard ./gnu-efi),rm -rf ./gnu-efi,)
 	$(if $(wildcard ${OUTPUT_PATH}),rm -r ${OUTPUT_PATH},)
 	$(if $(wildcard ${OTHER_PATH}/*.sym),rm ${OTHER_PATH}/*.sym,)
 	$(if $(wildcard ${OTHER_PATH}/*.log),rm ${OTHER_PATH}/*.log,)
