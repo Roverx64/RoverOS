@@ -3,7 +3,7 @@
 
 #define UI_SYSTEM_NAME "Graphite"
 #define UI_SYSTEM_VERSION_MAJOR 0
-#define UI_SYSTEM_VERSION_MINOR 4
+#define UI_SYSTEM_VERSION_MINOR 9
 
 #define UI_BUFFER uint32
 #define UI_RES uint32
@@ -14,26 +14,41 @@
 #define UI_COLOR uint32
 #define UI_TEXT char
 
-#define UI_BUFFER_OFFSET(buff,Xres,Xpos,Ypos) ((UI_BUFFER*)((uint32)buff+((Ypos*Xres)+Xpos)))
+#define UI_ID_UNKNOWN 0
+#define UI_ID_WINDOW 1
+#define UI_ID_TEXTOUT 2
 
-struct objectCommon{
+typedef struct UIcommon{
     UI_ID id;
-    UI_RES Xres;
-    UI_RES Yres;
-    UI_POS Xpos; //Always 0 for a window
-    UI_POS Ypos; //Always 0 for a window
-};
+    UI_POS Xp;
+    UI_POS Yp;
+    UI_RES Xr;
+    UI_RES Yr;
+    bool dirty; //Do we need to redraw this?
+}UIcommon;
 
-typedef struct window{
-    struct objectCommon common;
-    UI_BUFFER *buffer;
-    UI_OBJECT *objects;
-}window;
+typedef struct UIwindow{
+    UIcommon common;
+    UI_BUFFER *buffer; //Main UI buffer that the sub buffers draw to
+    UI_OBJECT *objects; //Pointer to subobjects
+    uint32 objCount; //Number of objects
+}UIwindow;
 
-typedef struct text{
-    struct objectCommon common;
-    UI_SCALE Xscale;
-    UI_SCALE Yscale;
-    UI_TEXT *text;
+typedef struct UItextout{
+    struct UIcommon common;
+    UIwindow *parent; //Parent window
+    uint32 cursor;
+    UI_TEXT *textBuffer; //Pointer to the text to render 
+    uint32 bufferLen; //Length of buffer allocated
+    UI_SCALE Xscale; //X axis scaling
+    UI_SCALE Yscale; //Y axis scaling
+    uint32 kerning;
     UI_COLOR color;
-}text;
+    void *font;
+    uint32 fXsz;
+    uint32 fYsz;
+    bool scroll; //Enable/Disable scrolling
+}UItextout;
+
+
+

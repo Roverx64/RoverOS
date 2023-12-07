@@ -6,14 +6,14 @@
 
 FILE *disk;
 
-uint64 fileSz(FILE *fl){
+uint64_t fileSz(FILE *fl){
     fseek(fl,0x0,SEEK_END);
-    uint64 r = ftell(fl);
+    uint64_t r = ftell(fl);
     fseek(fl,0x0,SEEK_SET);
     return r;
 }
 
-void copyFile(FILE *src, FILE *dest, uint64 sz){
+void copyFile(FILE *src, FILE *dest, uint64_t sz){
     char ch = 0x0;
     fseek(src,0,SEEK_SET);
     for(int i = 0; i < sz; ++i){
@@ -22,12 +22,12 @@ void copyFile(FILE *src, FILE *dest, uint64 sz){
     }
 }
 
-uint16 fcount = 0;
-void addFile(const char *subPath, const char *name, const char *ext, uint16 flags){
+uint16_t fcount = 0;
+void addFile(const char *subPath, const char *name, const char *ext, uint16_t flags){
     //Get full path
-    uint32 nLen = strlen(name);
-    uint32 xLen = strlen(ext);
-    uint32 fullLen = nLen+xLen+strlen(subPath);
+    uint32_t nLen = strlen(name);
+    uint32_t xLen = strlen(ext);
+    uint32_t fullLen = nLen+xLen+strlen(subPath);
     char *path = (char*)malloc(fullLen+16);
     sprintf(path,"./Ramdisk/FS/%s/%s.%s%c",subPath,name,ext,'\0');
     FILE *fl = fopen(path,"r");
@@ -42,7 +42,7 @@ void addFile(const char *subPath, const char *name, const char *ext, uint16 flag
     copyFile(fl,disk,fhdr.size);
     fclose(fl);
     free(path);
-    printf("[Wrote %lli bytes to disk|%s.%s]\n",fhdr.size,name,ext);
+    printf("[Wrote %li bytes to disk|%s.%s]\n",fhdr.size,name,ext);
     ++fcount;
 }
 
@@ -60,7 +60,7 @@ int main(){
     header.magic = RD_HEADER_MAGIC;
     header.files = fcount;
     fwrite(&header,sizeof(struct ramdiskHeader),1,disk);
-    printf("[Wrote %i files|Total %lli bytes/%lli Mb]\n",fcount,fileSz(disk),fileSz(disk)/1048576);
+    printf("[Wrote %i files|Total %li bytes/%li Mb]\n",fcount,fileSz(disk),fileSz(disk)/1048576);
     fclose(disk);
     return 0;
 }

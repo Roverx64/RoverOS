@@ -1,207 +1,244 @@
 -include config.mk
-#======Args======#
-#Arch
+#====Target====#
 ifeq (${arch},aarch64)
 $(info [!]Targeting aarch64)
-target_arch = A64
-EMULATOR = ${AARCH64_EMU}
+$(info [W]aarch64 is not yet supported)
+TARGET = A64
 else ifeq (${arch},x86_64)
-$(info [!]Targeting x86_64)
-target_arch := X64
-EMULATOR = ${x86_64_EMU}
+$(info [!]Targeting AMD64)
+TARGET = X64
 else
-$(info [!]No target specified, defaulting arch to x86_64)
-target_arch := X64
-EMULATOR = ${x86_64_EMU}
+$(info [!]No arch specified, defaulting to x86_64)
+TARGET = X64
 endif
+#=====Misc=====#
+ifeq (${lds_patch},0)
+$(info [!]Using gnuefi elf_x86_64_efi.lds)
+LDS_PATCH = 0
+else
+LDS_PATCH = 1
+endif
+#==C Compiler==#
+CC = ${C_COMPILER}
+CR = ${CROSS_COMPILER}
+ifeq (${no_cross},1)
+$(info [!]Using ${CC} instead of ${CR})
+CR = ${C_COMPILER}
+endif
+LD = ld
+#=ASM Compiler=#
+AS = nasm
+#=EFI Compiler=#
+ECC = gcc
+#===AS Flags===#
+AS_FLAGS = -g -Fdwarf -felf64
+#====C Flags===#
+CFLAGS = -mcmodel=kernel -Wall -Wextra -mgeneral-regs-only -fno-pic -fno-stack-protector -fno-stack-check -Wno-format -Wno-unused-variable -Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-implicit-function-declaration -ffreestanding -m64 -mno-red-zone -c -ggdb
+LDFLAGS = -m elf_x86_64 -nostdlib -T ${OTHER_PATH}/linker.ld -L./klib -L./libc
+ifeq (${werror},1)
+CFLAGS += -Werror
+endif
+#==EFI Flags===#
+EFLAGS = -Wno-implicit-int -mgeneral-regs-only -fpic -ffreestanding -fno-stack-protector -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -Wno-packed-bitfield-compat -c
+ELD_FLAGS = -shared -Bsymbolic -L./gnuefi/x86_64/lib -L./gnuefi/x86_64/gnuefi ./gnuefi/x86_64/gnuefi/crt0-efi-x86_64.o
+ifeq (${LDS_PATCH},1)
+ELD_FLAGS += -T${OTHER_PATH}/elf_x86_64_efi.lds
+else
+ELD_FLAGS += -T./gnuefi/gnuefi/elf_x86_64_efi.lds
+endif
+#====Include===#
+INCLUDE := $(subst ./,-I./,$(wildcard ./Headers/*) $(wildcard ./Headers/**/**/) $(wildcard ./Headers/libc/*) $(wildcard ./Headers/klib/*)) -I./Drivers/Headers
+EINCLUDE = -I${EFI_PATH}/Include -I./Bootloader/Headers -I./Bootloader/Headers/${TARGET} -I./Headers/System -I./Headers/Memory -I./Drivers/Headers
+RD_INCLUDE := $(subst ./,-I./,$(wildcard ./Headers/*))
+#=====Qemu=====#
+QARGS = -m 6G -d cpu_reset,int
+QARGS += -usb -device qemu-xhci,id=xhci -device ahci,id=ahci
+QARGS += -drive if=pflash,format=raw,unit=0,readonly=on,file=${OVMF_PATH}/OVMF.fd
+QARGS += -D ${OTHER_PATH}/qemu.log -cdrom ./RoverOS.iso
+QARGS += -serial file:${OTHER_PATH}/RoverOS.log
+QARGS += -drive format=raw,file=hdd.img
+QARGS += -monitor stdio ${EXPERIMENTAL_ARGS}
+ifeq (${TARGET},A64)
+EMU = ${AARCH64_EMU}
+else
+EMU = ${x86_64_EMU}
+endif
+#====Other=====#
 #GDB
-ifneq (${gdb},1)
-gdb=0
-endif
-#HDD
-ifeq (${hdd},1)
-USE_HDD=1
-else
-USE_HDD=0
+ifeq (${gdb},1)
+$(info [!]Enabling GDB flags)
+QARGS += -s -S
 endif
 #KVM
 ifeq (${kvm},1)
-EMULATOR = ${KVM_EMU}
+$(info [!]Using KVM)
+QARGS += -enable-kvm
 endif
-#==Arch specific=#
-ifeq (${target_arch},A64)
-CFLAGS = None
-LD_FLAGS = -T ${OTHER_PATH}/armlinker.ld
-LINKER = ${A64_LD}
-AS = ${A64_AS}
-AS_FLAGS = -march=armv8-a -mcpu=cortex-a32
-else
-CFLAGS = -mno-mmx -mcmodel=large -fno-pic -mno-sse -mno-sse2 -Wno-format -Wno-unused-variable -Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-implicit-function-declaration -ffreestanding -m64 -mno-red-zone -c -ggdb
-EFI_FLAGS = -Wno-implicit-int -fpic -ffreestanding -fno-stack-protector -fno-stack-check -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -Wno-packed-bitfield-compat -c
-EFI_LD_FLAGS = -shared -Bsymbolic -L${EFI_PATH}/lib -L${EFI_PATH}/gnuefi -T${EFI_PATH}/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/crt0-efi-x86_64.o
-LD_FLAGS = -m elf_x86_64 -nostdlib -T ${OTHER_PATH}/linker.ld -L./klib -L./libc
-LINKER = ${x64_LD}
-AS = ${x64_AS}
-AS_FLAGS = -g -Fdwarf -felf64
+#HDD
+ifeq (${hdd},1)
+USE_HDD = 1
 endif
-#====Compilers===#
-ifneq ("$(shell which x86_64-elf-gcc)","")
-CC = ${C_CROSS_COMPILER}
-else
-CC = ${C_COMPILER}
-endif
-#===Qemu flags===#
-ifeq (${target_arch},A64)
-QARGS = -M ${ARM_MACHINE} -cpu cortex-a15 -kernel ${OUTPUT_PATH}/Compiled/armboot.elf
-QARGS += -serial file:${OTHER_PATH}/RoverOS.log
-else
-QARGS = -bios ${OVMF_PATH}/OVMF.fd -m 500M -d cpu_reset,int
-QARGS += -D ${OTHER_PATH}/qemu.log -cdrom ./RoverOS.iso
-QARGS += -serial file:${OTHER_PATH}/RoverOS.log
-QARGS += -usb -device ahci,id=ahci
-QARGS += -drive format=raw,file=hdd.img,id=hddi
-QARGS += -rtc base=utc -monitor stdio
-endif
-QARGS += ${EXPERIMENTAL_ARGS}
-ifeq (${gdb},1)
-$(info [!]Using GDB)
-QARGS += -s -S
-endif
-#=====Include====#
-INCLUDE := $(subst ./,-I./,$(wildcard ./Headers/*) $(wildcard ./Headers/libc/*) $(wildcard ./Headers/klib/*))
-EFI_INCLUDE = -I${EFI_PATH}/Include -I./Bootloader/Include -I./Bootloader/Headers/${target_arch} -I./Headers/System -I./Headers/Memory
-#======Files=====#
-C_FILES := $(subst .c,_kernel.o,$(wildcard ./Kernel/**/*.c) $(wildcard ./Kernel/*.c) $(wildcard ./Kernel/**/${target_arch}/*.c))
+#=====Files====#
+#Module makefiles
+MK_FILES := $(wildcard ./Drivers/**/Makefile)
+#C files
+KERNEL_FILES := $(subst .c,_kernel.o,$(wildcard ./Kernel/**/*.c) $(wildcard ./Kernel/*.c) $(wildcard ./Kernel/**/${TARGET}/*.c) $(wildcard ./Kernel/**/${TARGET}/**/*.c))
 LIBC_FILES := $(subst .c,_libc.o,$(wildcard ./libc/**/*.c))
 KLIB_FILES := $(subst .c,_klib.o,$(wildcard ./klib/**/*.c))
-ifeq (${target_arch},X64)
+#Assembly
+AS_FILES := $(subst .asm,_asm.o,$(wildcard ./Kernel/ASM/X64/*.asm))
+EAS_FILES := $(subst .asm,_easm.o,$(wildcard ./Bootloader/X64/*.asm))
+#Bootloader
 BOOT_FILES := $(subst .c,_efi.o,$(wildcard ./Bootloader/X64/*.c))
-ASM_FILES := $(subst .asm,_asm.o,$(wildcard ./Kernel/ASM/X64/*.asm))
-else
-BOOT_FILES := $(subst .s,_barm.o,$(wildcard ./Boot/A64/*.s))
-ASM_FILES := $(subst .s,_arm.o,$(wildcard ./Kernel/ASM/A64/*.s))
-endif
-#======Rules=====#
+#=====Rules====#
 %_arm.o: $(notdir %.s)
 	${AS} ${AS_FLAGS} ./$< -o "${OUTPUT_PATH}/Bootloader/$(@F)"
 %_asm.o: $(notdir %.asm)
 	${AS} ${AS_FLAGS} ./$< -o "${OUTPUT_PATH}/Kernel/$(@F)"
+%_easm.o: $(notdir %.asm)
+	${AS} ${AS_FLAGS} ./$< -o "${OUTPUT_PATH}/Bootloader/$(@F)"
 %_kernel.o: $(notdir %.c)
-	${CC} ${CFLAGS} ${INCLUDE} ./$< -o "${OUTPUT_PATH}/Kernel/$(@F)"
+	${CR} ${CFLAGS} ${INCLUDE} ./$< -o "${OUTPUT_PATH}/Kernel/$(@F)"
 %_libc.o: $(notdir %.c)
-	${CC} ${CFLAGS} ${INCLUDE} ./$< -o "${OUTPUT_PATH}/Kernel/$(@F)"
+	${CR} ${CFLAGS} ${INCLUDE} ./$< -o "${OUTPUT_PATH}/Kernel/$(@F)"
 %_klib.o: $(notdir %.c)
-	${CC} ${CFLAGS} ${INCLUDE} ./$< -o ${OUTPUT_PATH}/Kernel/$(@F)
+	${CR} ${CFLAGS} ${INCLUDE} ./$< -o ${OUTPUT_PATH}/Kernel/$(@F)
 %_efi.o: $(notdir %.c)
-	${CC} ${EFI_FLAGS} ${EFI_INCLUDE} ./$< -o ${OUTPUT_PATH}/Bootloader/$(@F)
-#======Funcs=====#
-all: check bootloader libc klib kernel ramdisk hdd iso hdw clean
-	${EMULATOR} ${QARGS}
+	${CR} ${EFLAGS} ${EINCLUDE} ./$< -o ${OUTPUT_PATH}/Bootloader/$(@F)
+%_mod.o: $(notdir %.c)
+	${CR} ${MFLAGS} ${MINCLUDE} ./$< -o ./$(@F)
 
-kernel: $(C_FILES) $(ASM_FILES)
-	${LD} ${LD_FLAGS} ${OUTPUT_PATH}/Kernel/*.o -o ${OUTPUT_PATH}/Compiled/Fortuna.bin
-	${LD} ${LD_FLAGS} ${OUTPUT_PATH}/Kernel/*.o -o ${OUTPUT_PATH}/Compiled/Fortuna.o
-	objcopy --only-keep-debug ${OUTPUT_PATH}/Compiled/Fortuna.o ${OTHER_PATH}/Fortuna.sym
-
-bootloader: $(BOOT_FILES)
-	@echo "[!]Compiling ${target_arch} bootloader"
-    ifeq (${target_arch},X64)
-	cp ${EFI_PATH}/lib/data.o ${OUTPUT_PATH}/Bootloader/data.o
-	${LINKER} ${EFI_LD_FLAGS} ${OUTPUT_PATH}/Bootloader/*.o -o ${OUTPUT_PATH}/Bootloader/boot.so -lgnuefi -lefi
-	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel -j .rela -j .rel.* -j .rela.* -j .reloc --target efi-app-x86_64 --subsystem=10 ${OUTPUT_PATH}/Bootloader/boot.so ${OUTPUT_PATH}/Compiled/ROSBootloader.efi
-	objcopy --only-keep-debug ${OUTPUT_PATH}/Bootloader/boot.so ${OTHER_PATH}/Bootloader.sym
-	rm ${OUTPUT_PATH}/Bootloader/boot.so
-    else
-	${LINKER} ${LD_FLAGS} ${OUTPUT_PATH}/Bootloader/*.o -o ${OUTPUT_PATH}/Compiled/ROSBootloader.elf
+all: check polarboot bootargs mod fortuna ramdisk hdd iso usbcpy clean
+    ifeq (${gdb},1)
+	objdump -h ${OUTPUT_PATH}/Bootloader/Polarboot.efi
     endif
-	@echo "[!]Compiled ${target_arch} bootloader"
+	${EMU} ${QARGS}
 
-libc: $(LIBC_FILES)
-	@echo "[!]Compiled libc"
+#===Builds the cpu core bootstrap
+corebootstrap:
+	${AS} -fbin ./Bootloader/Corebootstrap.asm -o ./Ramdisk/FS/Corebootstrap.bin
 
-klib: $(KLIB_FILES)
-	@echo "[!]Compiled klib"
-
-ramdisk:
-	$(shell rm ./Ramdisk/*.disk)
-	${CC} ./Ramdisk/ramdisk.c -o ./Ramdisk/ramdisk.o ${INCLUDE}
-	./Ramdisk/ramdisk.o
-
-hdw:
-    ifeq (${USE_HDD},1)
-	@$(if $(wildcard ${HDD_PATH}),,echo '[X]Please check your HDD_PATH or check that the partition is mounted';failHere)
-	cp ${OUTPUT_PATH}/Compiled/ROSBootloader.* ${HDD_PATH}/
-	cp ${OUTPUT_PATH}/Compiled/Fortuna.bin ${HDD_PATH}/
-	cp ./Ramdisk/initrd.disk ${HDD_PATH}/initrd.disk
-	@echo "[!]Copied files to partition"
-    endif
-
-check:
-	@echo "[!]Checking for requirements"
-#   #===Commands===#
-	@$(if $(shell which ${AS}),echo '[!]${AS} is installed',echo '[X]Please install ${AS}';failHere)
-	@$(if $(shell which ${LINKER}),echo '[!]${LINKER} is installed',echo '[X]Please install ${LINKER}';failHere)
-	@$(if $(shell which ${CC}),echo '[!]${CC} is installed',echo '[X]${CC} not found, please install GCC or an x64 Cross Compiler';failHere)
-	@$(if $(shell which ${EMULATOR}),echo '[!]${EMULATOR} is installed', echo '[X]Please install ${EMULATOR}';failHere)
-    ifeq (${TARGET},x86_64)
-	@$(if $(wildcard ${OVMF_PATH}/OVMF.fd),echo '[!]Found ${OVMF_PATH}/OVMF.fd',$(if $(wildcard /usr/share/qemu/OVMF.fd),echo '[X]Please set OVMF_PATH to /usr/share/qemu'; failHere,echo "[X]Found no OVMF file, please set the path manually"; failHere))
-    endif
-    ifeq ($(wildcard ${EFI_PATH}),)
-#   #===Directory==#
-	$(if $(wildcard ${EFI_PATH}),,$(shell mkdir ${EFI_PATH}))
-	$(if $(wildcard ${OUTPUT_PATH}),,$(shell mkdir ${OUTPUT_PATH}))
-	$(if $(wildcard ${OUTPUT_PATH}/Bootloader),,$(shell mkdir ${OUTPUT_PATH}/Bootloader))
-	$(if $(wildcard ${OUTPUT_PATH}/Compiled),,$(shell mkdir ${OUTPUT_PATH}/Compiled))
-	$(if $(wildcard ${OUTPUT_PATH}/Kernel),,$(shell mkdir ${OUTPUT_PATH}/Kernel))
-#   #===GNU EFI====#
-	@echo "[!]Cloning gnuefi"
-	$(shell git clone ${GNU_EFI_REPO} ./gnu-efi)
-	@echo "[!]Building gnuefi"
-	cd ./gnu-efi && make
-	$(if $(wildcard ${EFI_PATH}/Include),,mkdir ${EFI_PATH}/Include)
-	cp ./gnu-efi/inc/*.h ${EFI_PATH}/Include
-	cp -r ./gnu-efi/inc/x86_64 ${EFI_PATH}/Include
-	cp -r ./gnu-efi/x86_64/lib ${EFI_PATH}
-	cp -r ./gnu-efi/x86_64/gnuefi ${EFI_PATH}
-	cp ./gnu-efi/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/elf_x86_64_efi.lds
-	@echo "[!]Please fix any errors, that may exist, mentioned above marked with '[X]'"
-    endif
-
+#===Builds the ISO
 iso:
-    ifeq (${target_arch},X64)
+    ifeq (${TARGET},X64)
 	mkdir -p ./ISO/boot/grub
 	cp ${OTHER_PATH}/grub.cfg ./ISO/boot/grub
 	grub-mkrescue -o ./RoverOS.iso ./ISO
 	rm -r ./ISO
     endif
 
+#===Copies files to USB for real hardware testing
+usbcpy:
+    ifeq (${usb},1)
+	cp -f ${OUTPUT_PATH}/Kernel/Fortuna.bin ${USB_PATH}/Fortuna.bin
+	cp -f ${OUTPUT_PATH}/Bootloader/Polarboot.efi ${USB_PATH}/Polarboot.efi
+    endif
+
+#===Builds modules/drivers
+mod:
+	$(info [!]Building drivers)
+	$(foreach mk,${MK_FILES},$(MAKE) -C $(subst Makefile,,$(mk)) driver target=${TARGET} CC=${CR} LDF=./../../Other/driverlink.ld)
+
+#==Copies file to tftp server
+netboot:
+	sudo cp ./Output/Bootloader/Polarboot.efi /srv/tftp/Polarboot.efi
+	sudo cp ./Output/Kernel/Fortuna.bin /srv/tftp/Fortuna.bin
+
+#===Builds the HDD
 hdd:
-    ifeq (${target_arch},X64)
+    ifeq (${TARGET},X64)
 	dd if=/dev/zero of=hdd.img bs=1M count=50
 	mkfs.vfat -F 32 hdd.img
 	mmd -i hdd.img ::/Binaries
 	mmd -i hdd.img ::/EFI
-	mcopy -i hdd.img ${OUTPUT_PATH}/Compiled/Fortuna.bin ::/
+	mmd -i hdd.img ::/MOD
+	mcopy -i hdd.img ${OUTPUT_PATH}/Kernel/Fortuna.bin ::/
 	mcopy -i hdd.img ./Ramdisk/initrd.disk ::/
-	mcopy -i hdd.img ${OUTPUT_PATH}/Compiled/ROSBootloader.* ::/EFI/
+	mcopy -i hdd.img ${OUTPUT_PATH}/Bootloader/Polarboot.efi ::/EFI/
+	mcopy -i hdd.img ${OUTPUT_PATH}/Kernel/Fortuna.bin ::/EFI/
+	mcopy -i hdd.img ./Other/console.psf ::/
+	mcopy -i hdd.img ./Other/test.bin ::/
+	mcopy -i hdd.img ./Other/polarboot.args ::/
+	$(foreach mod,$(wildcard ./Drivers/**/*.mod),mcopy -i hdd.img $(mod) ::/$(shell basename $(mod)))
+    endif
+
+#===Outputs debug info for EFI debugging
+dprint:
+	@grep "Image base: 0x" ./Other/RoverOS.log
+	@objdump -h ./Output/Bootloader/Polarboot.efi
+#add-symbol-file ./Other/Polarboot.sym 0xBDF1F000 -s .data 0xBDF1D000
+
+#==Compiles bootargs
+bootargs:
+	${CC} ./Bootloader/processargs.c -o ./Bootloader/processargs.o -I./Bootloader/Headers/X64
+	./Bootloader/processargs.o
+	rm ./Bootloader/processargs.o
+
+#===Builds the UEFI bootloader
+polarboot: $(BOOT_FILES) $(EAS_FILES)
+	@echo "[!]Building polarboot"
+	${LD} ${ELD_FLAGS} ${OUTPUT_PATH}/Bootloader/*.o -o ${OUTPUT_PATH}/Bootloader/Polarboot.so -lgnuefi -lefi
+	objcopy --only-keep-debug ${OUTPUT_PATH}/Bootloader/Polarboot.so ${OTHER_PATH}/Polarboot.sym
+	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel -j .rela -j .reloc --target=efi-app-x86_64 ${OUTPUT_PATH}/Bootloader/Polarboot.so ${OUTPUT_PATH}/Bootloader/Polarboot.efi
+
+#===Builds the kernel
+fortuna: $(AS_FILES) $(KERNEL_FILES) $(LIBC_FILES) $(KLIB_FILES)
+	${LD} -T${OTHER_PATH}/linker.ld ${OUTPUT_PATH}/Kernel/*.o -o ${OUTPUT_PATH}/Kernel/Fortuna.bin
+	${LD} -T${OTHER_PATH}/linker.ld ${OUTPUT_PATH}/Kernel/*.o -o ${OUTPUT_PATH}/Kernel/Fortuna.o
+	${AS} -fbin ${OTHER_PATH}/test.asm -o ${OTHER_PATH}/test.bin
+	objcopy --only-keep-debug ${OUTPUT_PATH}/Kernel/Fortuna.o ${OTHER_PATH}/Fortuna.sym
+
+#===Builds the ramdisk
+ramdisk:
+	$(shell rm ./Ramdisk/*.disk)
+	${CC} ./Ramdisk/ramdisk.c -o ./Ramdisk/ramdisk.o ${RD_INCLUDE}
+	./Ramdisk/ramdisk.o
+
+#===Check for required tools and directories
+check:
+	@echo [!]Checking for required tools
+	@$(if $(shell command -v ${CC}),echo '[!]Found ${CC}', echo '[X]No ${CC}';failHere)
+	@$(if $(shell command -v ${AS}),echo [!]Found ${AS}, echo [X]No ${AS};failhere)
+	@$(if $(shell command -v ${LD}),echo [!]Found ${LD}, echo [X]No ${LD};failHere)
+	@$(if $(shell command -v ${EMU}),echo [!]Found ${EMU}, echo [X]No ${EMU};failHere)
+	@$(if $(shell command -v git),echo [!]Found git, echo [X]No git;failHere)
+	@$(if $(shell command -v mtools),echo [!]Found mtools, echo [X]No mtools;failHere)
+	@$(if $(shell command -v xorriso),echo [!]Found xorriso, echo [X]No xorriso;failHere)
+	@$(if $(shell command -v mkfs.vfat),echo [!]Found mkfs.vfat, echo [X]No mkfs.vfat;failHere)
+	@$(if $(shell command -v mmd),echo [!]Found mmd, echo [X]No mmd;failHere)
+	@$(if $(shell command -v mcopy),echo [!]Found mcopy, echo [X]No git;failHere)
+	@echo [!]Checking paths
+	@$(if $(wildcard ${EFI_PATH}),,$(shell mkdir ${EFI_PATH}))
+	@$(if $(wildcard ${EFI_PATH}/Include),,mkdir ${EFI_PATH}/Include)
+	@$(if $(wildcard ${OVMF_PATH}/OVMF.fd),echo [!]Found OVMF.fd, echo [X]No OVMF.fd;failHere)
+	@$(if $(wildcard ${OUTPUT_PATH}),,$(shell mkdir ${OUTPUT_PATH}))
+	@$(if $(wildcard ${OUTPUT_PATH}/Bootloader),,$(shell mkdir ${OUTPUT_PATH}/Bootloader))
+	@$(if $(wildcard ${OUTPUT_PATH}/Kernel),,$(shell mkdir ${OUTPUT_PATH}/Kernel))
+	@echo [!]Checking for gnuefi
+    ifeq ("$(wildcard ./gnuefi)","")
+	@echo [!]Cloning gnuefi
+	git clone ${GNUEFI_REPO} gnuefi
+	@echo [!]Building gnuefi
+	cd ./gnuefi && make
+	cp ./gnuefi/inc/*.h ${EFI_PATH}/Include
+	cp -r ./gnuefi/inc/x86_64 ${EFI_PATH}/Include
+	cp -r ./gnuefi/x86_64/lib ${EFI_PATH}
+	cp -r ./gnuefi/x86_64/gnuefi ${EFI_PATH}
+	cp ./gnuefi/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/elf_x86_64_efi.lds
+    else
+	@echo "[!]gnuefi found"
     endif
 
 clean:
-	$(shell find . -path ./gnu-efi -prune -o -name '*.o' -exec rm {} \;)
-	$(shell find . -path ./gnu-efi -prune -o -name '*.so' -exec rm {} \;)
+	$(shell find . -path ./gnuefi -prune -o -name '*.o' -exec rm {} \;)
+	$(shell find . -path ./gnuefi -prune -o -name '*.mod' -exec rm {} \;)
+	$(shell find . -path ./gnuefi -prune -o -name '*.so' -exec rm {} \;)
 	$(shell find . -name *.tmp -exec rm {} \;)
 	@echo "[!]Cleaned all object files"
-	$(if $(wildcard ${EFI_PATH}/Include),,mkdir ${EFI_PATH}/Include)
-	cp ./gnu-efi/inc/*.h ${EFI_PATH}/Include
-	cp -r ./gnu-efi/inc/x86_64 ${EFI_PATH}/Include
-	cp -r ./gnu-efi/x86_64/lib ${EFI_PATH}
-	cp -r ./gnu-efi/x86_64/gnuefi ${EFI_PATH}
-	cp ./gnu-efi/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/elf_x86_64_efi.lds
-	@echo "[!]Copied back gnuefi files"
 
-reset: clean
+reset:
 	$(if $(wildcard ${EFI_PATH}),rm -r ${EFI_PATH},)
-	$(if $(wildcard ./gnu-efi),rm -rf ./gnu-efi,)
+	$(if $(wildcard ./gnuefi),rm -rf ./gnuefi,)
 	$(if $(wildcard ${OUTPUT_PATH}),rm -r ${OUTPUT_PATH},)
 	$(if $(wildcard ${OTHER_PATH}/*.sym),rm ${OTHER_PATH}/*.sym,)
 	$(if $(wildcard ${OTHER_PATH}/*.log),rm ${OTHER_PATH}/*.log,)
@@ -210,6 +247,7 @@ reset: clean
 	$(if $(wildcard ./*.img),rm ./*.img,)
 	$(if $(wildcard ./ISO),rm -r ./ISO,)
 	$(if $(wildcard ./HDD),rm -r ./HDD,)
+	$(shell find ./Drivers/**/ -name 'Out' -exec rm -rf {} \;)
 	@echo "[!]Reset folder back to the default state"
 
-.PHONY: check libc klib clean
+.PHONY: check hdd reset

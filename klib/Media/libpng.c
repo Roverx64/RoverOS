@@ -1,65 +1,57 @@
 #include <libpng.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <debug.h>
+/*
+void getChunk(FILE *fl, struct pngChunk *chunk){
+    uint64 ret = ftell(fl);
+    fread(chunk,sizeof(struct pngChunk),1,fl);
+    fseek(fl,ret,SEEK_SET);
+}
 
-void readIHDR(pngIHDR *ihdr){
-    if(rorder32(ihdr->ident.type) != PNG_CHUNK_IHDR){
+void readIHDR(FILE *fl){
+    struct IHDR ihdr;
+    fread(&ihdr,sizeof(ihdr),1,fl);
+    if(rorder32(ihdr.chunk.type) != PNG_CHUNK_IHDR){
         kdebug(DNONE,"Invalid IHDR\n");
         return;
     }
-    kdebug(DNONE,"[");
-    kdebug(DNONE,"0x%llX x 0x%llX|",rorder32(ihdr->width),rorder32(ihdr->height));
-    switch(ihdr->colorType){
-        case PNG_COLOR_GREYSCALE:
-        kdebug(DNONE,"Greyscale");
-        break;
-        case PNG_COLOR_RGB:
-        kdebug(DNONE,"RGB");
-        break;
-        case PNG_COLOR_PALETTE:
-        kdebug(DNONE,"Palette");
-        break;
-        case PNG_COLOR_GRAYALPHA:
-        kdebug(DNONE,"Grey+alpha");
-        break;
-        case PNG_COLOR_RGBA:
-        kdebug(DNONE,"RGBA");
-        break;
-        default:
-        kdebug(DNONE,"Unknown");
-        break;
-    }
-
-    kdebug(DNONE,"]\n");
+    kdebug(DNONE,"#===IHDR===#\n");
+    kdebug(DNONE,"0x%x x 0x%x\n",rorder32(ihdr.width),rorder32(ihdr.height));
+    kdebug(DNONE,"Depth: 0x%hx\n",ihdr.depth);
+    kdebug(DNONE,"Type: 0x%hx\n",ihdr.type);
+    kdebug(DNONE,"Compression: 0x%hx\n",ihdr.compression);
+    kdebug(DNONE,"Filter: 0x%hx\n",ihdr.filter);
+    kdebug(DNONE,"Interlace: 0x%hx\n",ihdr.interlace);
 }
 
-void readIDAT(pngIDAT *idat){
-    if(rorder32(idat->ident.type) != PNG_CHUNK_IDAT){
-        kdebug(DNONE,"Invalid IDAT\n");
+void drawPNG(FILE *fl){
+    kdebug(DNONE,"#==========PNG==========#\n");
+    struct pngSignature sig;
+    fread(&sig,sizeof(sig),1,fl);
+    if(rorder64(sig.signature) != PNG_SIGNATURE){goto end;}
+    kdebug(DNONE,"Found valid png signature\n");
+    struct pngChunk chunk;
+    getChunk(fl,&chunk);
+    //Must be IHDR first
+    if(rorder32(chunk.type) != PNG_CHUNK_IHDR){
+        kdebug(DNONE,"Invalid PNG file. (IHDR must be first)\n");
         return;
     }
-}
-
-uint32 getPixel(void *data){
-    //Processes, decompresses, and returns a valid pixel
-    //Use pallette if present
-    uint8 *rgb = (uint8*)data;
-    uint32 offset = 0x0;
-    //Assume RGB colors for now
-    offset += 3;
-}
-
-void readPNG(void *data){
-    pngSignature *png = (pngSignature*)data;
-    if(rorder64(png->signature) != PNG_SIGNATURE){kdebug(DINFO,"Invalid PNG signature 0x%llx\n",rorder64(png->signature)); return;}
-    kdebug(DINFO,"Got valid PNG signature\n");
-    //IHDR is always first
-    struct chunkIdent *ident = (struct chunkIdent*)((uint64)data+sizeof(pngSignature));
-    uint32 ntype = rorder32(ident->type);
-    readIHDR((pngIHDR*)((uint64)data+sizeof(pngSignature)));
+    readIHDR(fl);
     //Loop through chunks
-    for(int i = 0;i < 1; ++i){
-        //ident = NEXT_CHUNK(ident);
-        //kdebug(DNONE,"[%c%c%c%c]\n",ident->type&(0xFF<<0),ident->type&(0xFF<<8),ident->type&(0xFF<<16),ident->type&(0xFF<<32));
+    for(;;){
+        getChunk(fl,&chunk);
+        switch(rorder32(chunk.type)){
+            case PNG_CHUNK_IDAT:
+            break;
+            case PNG_CHUNK_IEND:
+            break;
+            case PNG_CHUNK_PLTE:
+            break;
+        }
     }
+    end:
+    kdebug(DNONE,"#=======================#\n");
 }
+*/

@@ -15,6 +15,10 @@ void writeIDT(struct idtEntry *entries, uint32 n, uint16 selector, void *isr){
     entries[n].present = true;
 }
 
+void overrideIDTEntry(uint32 vector, void *handle){
+    writeIDT(&idtEntries,vector,0x8,handle);
+}
+
 void initIDT(){
     idtp.limit = (sizeof(struct idtEntry)*256)-1;
     idtp.base = (uint64)&idtEntries;

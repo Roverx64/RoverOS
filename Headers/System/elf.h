@@ -12,7 +12,7 @@ typedef signed long ELF64_Sxword;
 typedef uint8 ELF64_Byte;
 typedef uint16 ELF64_Section;
 
-#define ELF_MAGIC "\177ELF"
+#define ELF_MAGIC (ELF64_Byte*)"\177ELF"
 
 typedef struct ELF64eident{
     ELF64_Byte magic[4];

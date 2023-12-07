@@ -8,16 +8,18 @@ RoverOS is named after my dog, and that is where my username comes from as well.
 
 ### Planned for next update
 Things I will try to add in the near future
-* Apple TTF support
-* PNG support
+* PSF for a basic font
 * Basic GUI
-* New stack
 * More in-depth fault handlers
-* Completed aarch64 bootloader
+* Instruction decoding for debugging
+* Multitasking
+* XHCI
+* Drivers
 
 ### Planned features
 These are things I will likely add in the future
-* Multitasking
+* AHCI
+* TTF support
 * Networking
 * Custom libc (Likely not POSIX compliant)
 * Auto makefile config
@@ -36,6 +38,7 @@ These are things I will likely add in the future
 
 ### Known issues
 * Shift key acts as an enter key on real hardware with ASUS UEFI
+* Keyboard inputs are unreasonably slow with MSI UEFI (This may be an MSI firmware issue)
 ---
 ### Requirements
 Things needed for both architectures

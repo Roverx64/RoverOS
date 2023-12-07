@@ -13,13 +13,16 @@ void isr(registers reg, uint32 ec){
         fnc(reg);
         return;
     }
-    kdebug(DERROR,"Unhandled ISR\n");
+    kdebug(DERROR,"Unhandled ISR 0x%x\n",ec);
     for(;;){asm("hlt");}
 }
 
-void irq(registers reg){
-    kdebug(DINFO,"Got IRQ\n");
-    for(;;){asm("hlt");}
+void irq(registers reg, uint64 irqn){
+    if(irqn < 32){kdebug(DERROR,"Invalid IRQ of 0x%x\n",irqn); return;}
+    if(handlers[irqn] == NULL){kdebug(DWARN,"Unhandled IRQ\n"); return;}
+    intHandler fnc = (intHandler*)handlers[irqn];
+    fnc(reg);
+    return;
 }
 
 void addInterruptHandler(uint32 vector, intHandler handler){

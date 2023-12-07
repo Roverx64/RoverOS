@@ -5,15 +5,17 @@
 #define RD_HEADER_MAGIC 0x52444852 //RDHR
 
 struct ramdiskHeader{
-    uint32 magic;
-    uint16 files; //Number of files in the ramdisk
+    uint32_t magic;
+    uint16_t files; //Number of files in the ramdisk
 }__attribute__((packed));
 
 struct ramdiskFile{
-    uint32 magic;
-    uint64 offset; //Offset to next file
-    uint64 size; //Size of file
-    uint16 flags; //Flags
+    uint32_t magic;
+    uint64_t offset; //Offset to next file
+    uint64_t size; //Size of file
+    uint16_t flags; //Flags
+    uint16_t name; //Offset to name relative to this struct
+    uint16_t ext; //Offset to ext relative to the struct
 }__attribute__((packed));
 
 #define FLAG_WRITE 0x1<<0
@@ -22,7 +24,9 @@ struct ramdiskFile{
 extern void initRamdisk(void *ptr);
 #endif
 
-#define FILE_DATA(ptr,nlen,xlen) ((void*)((uint64)ptr+sizeof(struct ramdiskFile)+nlen+xlen+2))
+#define FILE_NAME(ptr) ((uint64)ptr+ptr->name)
+#define FILE_EXT(ptr) ((uint64)ptr+ptr->ext)
+#define FILE_DATA(ptr,nlen,xlen) ((void*)((uint64_t)ptr+sizeof(struct ramdiskFile)+nlen+xlen+2))
 
 //General Ramdisk layout
 /*

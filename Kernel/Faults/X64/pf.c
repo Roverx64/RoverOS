@@ -20,22 +20,22 @@ intHandler pageFault(registers reg){
     kdebug(DNONE,"CPL=");
     if(!user){kdebug(DNONE,"Supervisor\n");}
     else{kdebug(DNONE,"User\n");}
-    struct pde page;
-    getPageInfo((pageSpace*)cr3,&page,faultAddr);
-    uint8 exists = page.ps;
-    if(!exists){goto cause;}
-    kdebug(DNONE,"PHYS=0x%llx\n",page.addr);
+    uint64 page = getPageInfo(cr3,faultAddr);
+    if(page == 0x0){kdebug(DNONE,"Page not found in cr3\n"); goto cause;}
+    kdebug(DNONE,"RAW=0x%llx\n",page);
+    kdebug(DNONE,"PHYS=0x%llx\n",TABLE_BASE(page));
+    kdebug(DNONE,"RIP=0x%lx\n",reg.rip);
     kdebug(DNONE,"FLAGS=");
-    if(page.present){kdebug(DNONE,"P");}else{kdebug(DNONE,"-");}
-    if(page.write){kdebug(DNONE,"W");}else{kdebug(DNONE,"R");}
-    if(page.user){kdebug(DNONE,"U");}else{kdebug(DNONE,"S");}
-    if(page.pwt){kdebug(DNONE,"T");}else{kdebug(DNONE,"-");}
-    if(page.pcd){kdebug(DNONE,"C");}else{kdebug(DNONE,"-");}
-    if(page.accessed){kdebug(DNONE,"A");}else{kdebug(DNONE,"-");}
-    if(page.dirty){kdebug(DNONE,"D");}else{kdebug(DNONE,"-");}
-    if(page.global){kdebug(DNONE,"G");}else{kdebug(DNONE,"-");}
-    if(page.pat){kdebug(DNONE,"O");}else{kdebug(DNONE,"-");}
-    if(page.nx){kdebug(DNONE,"-");}else{kdebug(DNONE,"X");}
+    if(page&PG_PRESENT){kdebug(DNONE,"P");}else{kdebug(DNONE,"-");}
+    if(page&PG_WRITE){kdebug(DNONE,"W");}else{kdebug(DNONE,"R");}
+    if(page&PG_USER){kdebug(DNONE,"U");}else{kdebug(DNONE,"S");}
+    if(page&PG_PWT){kdebug(DNONE,"T");}else{kdebug(DNONE,"-");}
+    if(page&PG_PCD){kdebug(DNONE,"C");}else{kdebug(DNONE,"-");}
+    if(page&PG_ACCESSED){kdebug(DNONE,"A");}else{kdebug(DNONE,"-");}
+    if(page&PG_DIRTY){kdebug(DNONE,"D");}else{kdebug(DNONE,"-");}
+    if(page&PG_GLOBAL){kdebug(DNONE,"G");}else{kdebug(DNONE,"-");}
+    if(page&PG_PAT){kdebug(DNONE,"O");}else{kdebug(DNONE,"-");}
+    if(page&PG_NX){kdebug(DNONE,"-");}else{kdebug(DNONE,"X");}
     kdebug(DNONE,"\n");
     cause:
     //Determine cause
@@ -44,7 +44,7 @@ intHandler pageFault(registers reg){
         kdebug(DNONE,"Wrote 1 to reserved bit(s)\n");
         goto end;
     }
-    if(!exists){
+    if(page == 0x0){
         kdebug(DNONE,"Non-existent page\n");
         goto end;
     }
@@ -54,10 +54,23 @@ intHandler pageFault(registers reg){
         kdebug(DNONE,"unmapped page\n");
         goto end;
     }
+    if(present && write && !(page&PG_WRITE)){
+        kdebug(DNONE,"Wrote to read-only page\n");
+        goto end;
+    }
     if(fetch){
         kdebug(DNONE,"Instruction fetch\n");
     }
     end:
+    kdebug(DNONE,"#===========Registers==========#\n");
+    kdebug(DNONE,"RAX: 0x%lx RCX: 0x%lx RBX: 0x%lx\n",reg.rax,reg.rcx,reg.rbx);
+    kdebug(DNONE,"RDI: 0x%lx RSI: 0x%lx RDX: 0x%lx\n",reg.rdi,reg.rsi,reg.rdx);
+    kdebug(DNONE,"RIP: 0x%lx RBP: 0x%lx RSP: 0x%lx\n",reg.rip,reg.rbp,reg.rsp);
+    kdebug(DNONE,"R08: 0x%lx R09: 0x%lx R10: 0x%lx\n",reg.r8,reg.r9,reg.r10);
+    kdebug(DNONE,"R11: 0x%lx R12: 0x%lx R13: 0x%lx\n",reg.r11,reg.r12,reg.r13);
+    kdebug(DNONE,"R14: 0x%lx R15: 0x%lx\n",reg.r14,reg.r15);
+    kdebug(DNONE,"CS: 0x%lx SS: 0x%lx EC: 0x%lx\n",reg.cs,reg.ss,reg.ec);
+    kdebug(DNONE,"RFLAGS: 0x%lx\n",reg.rflags);
     kdebug(DNONE,"#==============================#\n");
     for(;;){asm("hlt");}
 }

@@ -4,21 +4,24 @@
 #include "mmap.h"
 #include "pmm.h"
 #include "bootinfo.h"
-#include "palloc.h"
+#include "kheap.h"
 #include <string.h>
 
-uint32 pmmEntries;
-uint64 *physmap;
+memRegion lowMem;
+memRegion highMem;
 
-void setPMMBit(uint64 phys, bool free){
-    phys = KALIGN(phys); //Get physmap entry
-    uint32 pgentry = GET_PMM_ENTRY(phys);
-    uint32 subentry = GET_PMM_SUBENTRY(phys);
-    if(free){physmap[pgentry] ^= (0x1<<subentry);}
-    else{physmap[pgentry] |= (0x1<<subentry);}
+void markPages(memRegion *mem, uint64_t ptr, uint64_t pages, bool free){
+    //if(!IS_ALIGNED(ptr)){return;}
+    ptr = ptr-mem->start;
+    uint64_t index = GET_PMM_ENTRY(ptr);
+    uint64_t set = ((0xFFFFFFFFFFFFFFFF>>(64-pages))<<GET_PMM_SUBENTRY(ptr));
+    if(!free){mem->bitmap[index] |= set; return;}
+    if((mem->bitmap[index]&set) != set){return;}
+    mem->bitmap[index] ^= set;
 }
 
-void initMmapEntry(mmapEntry *entry){
+void initMmapEntry(memRegion *mem, mmapEntry *entry){
+    if(entry->magic != MMAP_MAGIC){kdebug(DERROR,"Invalid MMAP magic\n"); return;}
     bool set = true;
     switch(entry->type){
         case MMAP_TYPE_UEFI:
@@ -31,62 +34,77 @@ void initMmapEntry(mmapEntry *entry){
         break;
     }
     uint32 pages = entry->bytes/PAGE_SZ;
-    for(int i = 0;i < pages; ++i){
-        setPMMBit(entry->phys+(i*PAGE_SZ),set);
-    }
+    markPages(mem,entry->phys,(entry->bytes/PAGE_SZ),set);
 }
 
 //Only manages free memory
 void initPMM(struct bootInfo *kinf){
-    kdebug(DINFO,"Initilizing pmm with 0x%llx MB of total ram\n",(uint64)(kinf->mem.totalMem/1048576));
-    mmapEntry *mmap = (mmapEntry*)kinf->mem.ptr;
-    pmmEntries = (kinf->mem.totalMem/PAGE_SZ)/64;
-    uint64 sz = pmmEntries*sizeof(uint64);
-    //Find free spot for physmap
-    for(int i = 0; i < kinf->mem.entries; ++i){
-        if(mmap[i].type == MMAP_TYPE_FREE && mmap[i].bytes >= sz){
-            physmap = (uint64*)mmap[i].phys;
-            break;
-        }
+    kdebug(DINFO,"Initilizing pmm with 0x%lx MB (0x%lx GB) of total ram\n",(uint64)(kinf->mem.totalMem/0x200000),(uint64)(kinf->mem.totalMem/0x40000000));
+    uint64_t lsz = kinf->mem.totalMem/0x40000000;
+    uint64_t hsz = 0;
+    if((kinf->mem.totalMem/0x40000000) > 4){
+        lsz = 4;
+        hsz = (kinf->mem.totalMem/0x40000000)-4;
+        lowMem.entries = ((lsz*0x40000000)/PAGE_SZ)/64;
+        highMem.entries = ((hsz*0x40000000)/PAGE_SZ)/64;
     }
-    memset(physmap,sz,0x0);
-    //Initilize all of mem
-    bool set = false;
-    for(uint32 i = 0; i < kinf->mem.entries; ++i){
-        initMmapEntry(&mmap[i]);
+    kdebug(DINFO,"%lxGB low | %lxGB high\n",lsz,hsz);
+    lowMem.start = 0x0;
+    highMem.start = ((uint64_t)0x40000000*(uint64_t)4);
+    void *ptr = halloc((highMem.entries+lowMem.entries)*sizeof(uint64_t));
+    kdebug(DINFO,"Allocated bitmap to 0x%lx\n",(uint64_t)ptr);
+    memset(ptr,0x0,(highMem.entries+lowMem.entries)*sizeof(uint64_t));
+    lowMem.bitmap = (uint64*)ptr;
+    if(hsz != 0){highMem.bitmap = (uint64_t*)((uint64_t)ptr+(sizeof(uint64_t)*lowMem.entries));}
+    else{highMem.bitmap = NULL;}
+    mmapEntry *entries = (mmapEntry*)kinf->mem.ptr;
+    memRegion *mem = NULL;
+    for(uint64_t i = 0; i < kinf->mem.entries; ++i){
+        if(entries[i].phys >= highMem.start){mem = &highMem;}
+        else{mem = &lowMem;}
+        initMmapEntry(mem,&entries[i]);
     }
+    markPages(&lowMem,0x0,1,false);
     kdebug(DINFO,"Initilized PMM\n");
 }
 
-//Returns a pointer to a phys page
-void *palloc(){
-    uint64 test = 0xFFFF;
-    uint16 shift = 0x0;
-    uint16 word = 0x0;
-    uint16 pos = 0x0;
-    int i = 0;
-    for(; i < pmmEntries; ++i){
-        if(physmap[i] == 0xFFFFFFFFFFFFFFFF){continue;} //All pages allocated
-        //Shift until free bit is found
-        while(physmap[i]&(test<<shift) == test){shift+=16;}
-        word = (physmap[i]&(test<<shift))>>shift;
-        //Find free bit
-        int bit = 0;
-        for(;bit < 16;++bit){
-            if(word&(1<<bit) == 0x0){break;}
+//NOTE: Might add an option for memory below 1MB for SMP trampoline
+void *allocatePhys(uint16_t pages, uint8_t type){
+    if((pages == 0) || (pages > 64)){return NULL;}
+    uint64_t i = 0;
+    int b = 0;
+    bool lpDone = false;
+    uint64_t test = (0xFFFFFFFFFFFFFFFF>>(64-pages));
+    memRegion *mem = &lowMem;
+    if(type == PMM_ALLOC_HIGHMEM){mem = &highMem;}
+    if(type == PMM_ALLOC_LOWMEM){mem = &lowMem;}
+    lp:
+    for(; i < mem->entries; ++i){
+        if(mem->bitmap[i] == 0xFFFFFFFFFFFFFFFF){continue;}
+        //Test for contiguous section of pages
+        for(; b < (64-pages); ++b){
+            if((mem->bitmap[i]&(test<<b)) == 0x0){goto ret;}
         }
-        //Determine final pos
-        pos = (shift-16)+bit;
         break;
     }
-    //Do math and get phys addr
-    uint64 phys = ((i*64)*PAGE_SZ)+(PAGE_SZ*pos);
-    setPMMBit(phys,false);
-    return (void*)phys;
+    if((highMem.bitmap != NULL) && (type == PMM_ALLOC_ANYMEM) && (lpDone != true)){
+        mem = &highMem;
+        lpDone = true;
+        i = 0;
+        goto lp;
+    }
+    return NULL;
+    ret:
+    //Determine address
+    uint64_t addr = mem->start+(((i*64)+b)*PAGE_SZ);
+    //Mark pages as used
+    markPages(mem,addr,pages,false);
+    return (void*)addr;
 }
 
-//Frees a phys page
-void pfree(void *ptr){
-    if(IS_ALIGNED(ptr)){kdebug(DERROR,"Unaligned ptr 0x%llx",(uint64)ptr); return;} //Pointer is not valid
-    setPMMBit((uint64)ptr,true);
+void freePhys(uint64_t phys, uint64_t pages){
+    memRegion *mem = NULL;
+    if(phys >= highMem.start){mem = &highMem;}
+    else{mem = &lowMem;}
+    markPages(mem,phys,pages,true);
 }

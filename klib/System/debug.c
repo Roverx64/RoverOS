@@ -2,14 +2,15 @@
 #include <com.h>
 #include <debug.h>
 #include <stdarg.h>
+#include <gui.h>
+#include "kheap.h"
 #define CAP_MASK 0xDF //& this to capitalize a 8 bit char
 
 char ch = 'A';
-
-
-//'a' 01100001
-//'A' 01000001
-//    11011111
+bool uiDebug = false;
+UIwindow debugWindow;
+UItextout output;
+UI_OBJECT *obj[1];
 
 
 void writeHex(uint64 num,uint16 bytes,bool caps){
@@ -30,14 +31,22 @@ void writeHex(uint64 num,uint16 bytes,bool caps){
         else{
             ch = nibble|0x30;
         }
+        if(uiDebug){addCharacter(&output,(UI_TEXT)ch);}
         writeByte(KDEBUG_PORT,ch);
         ch = 0x0;
     }
-    if(leading){writeByte(KDEBUG_PORT,'0');}
+    if(leading){writeByte(KDEBUG_PORT,'0'); /*addCharacter(&output,(UI_TEXT)ch);*/}
 }
 
 void kprintChar(char ch){
+    if(uiDebug){addCharacter(&output,(UI_TEXT)ch);}
     writeByte(KDEBUG_PORT,ch);
+}
+
+void kprintString(const char *str){
+    for(int i = 0; str[i] != '\0';++i){
+        kprintChar(str[i]);
+    }
 }
 
 void kdebug(const char *func, uint8 level, const char *str, ...){
@@ -63,15 +72,15 @@ void kdebug(const char *func, uint8 level, const char *str, ...){
         goto skip;
         break;
     }
-    writeString(KDEBUG_PORT,func);
-    writeByte(KDEBUG_PORT,'[');
-    writeByte(KDEBUG_PORT,dchar);
-    writeByte(KDEBUG_PORT,']');
-    writeByte(KDEBUG_PORT,':');
+    kprintString(func);
+    kprintChar('[');
+    kprintChar(dchar);
+    kprintChar(']');
+    kprintChar(':');
     skip:
     for(int i = 0; str[i] != '\0'; ++i){
         if(str[i] != '%'){
-            writeByte(KDEBUG_PORT,str[i]);
+            kprintChar(str[i]);
             continue;
         }
         loop:
@@ -81,11 +90,13 @@ void kdebug(const char *func, uint8 level, const char *str, ...){
             break;
             case 'X':
             caps = true;
+            writeHex(va_arg(args,uint64),sizeof(uint64),caps);
+            break;
             case 'x':
             writeHex(va_arg(args,uint64),sizeof(uint64),caps);
             break;
             case 'c':
-            writeByte((char)KDEBUG_PORT,va_arg(args,int));
+            kprintChar(va_arg(args,int));
             break;
             case 'h':
             sizeModifier = 1;
@@ -96,11 +107,47 @@ void kdebug(const char *func, uint8 level, const char *str, ...){
             goto loop;
             break;
             case 's':
-            writeString(KDEBUG_PORT,va_arg(args,char*));
+            kprintString(va_arg(args,char*));
             break;
             default:
             break;
         }
         sizeModifier = 0;
     }
+    //if(uiDebug){renderText(&output);}
+}
+
+//Setup UI debugging
+void initUIDebug(void *buffer, uint32 Xr, uint32 Yr){
+    //Manually setup the window for now
+    debugWindow.buffer = (UI_BUFFER*)buffer;
+    debugWindow.common.id = UI_ID_WINDOW;
+    debugWindow.common.Xp = 0;
+    debugWindow.common.Yp = 0;
+    debugWindow.common.Xr = Xr;
+    debugWindow.common.Yr = Yr;
+    debugWindow.common.dirty = false;
+    debugWindow.objects = &obj;
+    debugWindow.objCount = 1;
+    obj[0] = (UI_OBJECT*)&output;
+    //Setup output
+    output.common.id = UI_ID_TEXTOUT;
+    output.common.Xp = 0;
+    output.common.Yp = 0;
+    output.common.Xr = Xr;
+    output.common.Yr = Yr;
+    output.cursor = 0;
+    output.common.dirty = false;
+    output.parent = &debugWindow;
+    output.textBuffer = (UI_TEXT*)halloc(sizeof(UI_TEXT)*6000);
+    output.bufferLen = 1000;
+    output.Xscale = 1;
+    output.Yscale = 1;
+    output.scroll = true;
+    //output.font = &testFont;
+    output.kerning = 2;
+    output.fXsz = 8;
+    output.fYsz = 8;
+    output.color = 0x00FFFFFF;
+    uiDebug = true;
 }

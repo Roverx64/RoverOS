@@ -1,11 +1,29 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <debug.h>
 #include <libpng.h>
 #include "ramdisk.h"
+#include "kheap.h"
 
 //For reading files from the ramdisk
 struct ramdiskHeader *header = NULL;
+
+FILE *openRamdiskFile(const char *name, const char *ext){
+    struct ramdiskFile *fl = (struct ramdiskFile*)((uint64)header+sizeof(struct ramdiskHeader));
+    bool found = false;
+    for(uint16 i = 0; i < header->files; ++i){
+        if((strcmp(name,(char*)FILE_NAME(fl)) == 0) || (strcmp(ext,(char*)FILE_EXT(fl)) == 0)){
+            found = true;
+            break;
+        }
+    }
+    if(!found){return NULL;}
+    FILE *rdfl = halloc(sizeof(FILE));
+    rdfl->stream = FILE_DATA(fl,strlen((char*)FILE_NAME(fl)),strlen((char*)FILE_EXT(fl)));
+    rdfl->offset = 0;
+    rdfl->size = fl->size;
+}
 
 void initRamdisk(void *ptr){
     header = (struct ramdiskHeader*)ptr;
@@ -13,12 +31,4 @@ void initRamdisk(void *ptr){
         kdebug(DERROR,"Invalid ramdisk header\n");
         return;
     }
-    //Test read first file
-    struct ramdiskFile *file = (struct ramdiskFile*)((uint64)ptr+sizeof(struct ramdiskHeader));
-    char *name = (char*)((uint64)file+sizeof(struct ramdiskFile));
-    char *ext = (char*)((uint64)name+strlen(name)+1);
-    kdebug(DINFO,"File: %s.%s\n",name,ext);
-    void *data = FILE_DATA(file,strlen(name),strlen(ext));
-    //Test draw png
-    readPNG(data);
 }

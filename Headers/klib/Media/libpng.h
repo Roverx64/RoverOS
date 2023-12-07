@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
-
+#include <stdio.h>
+/*
 //PNG is in network (big endian) order
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #include <byteswap.h>
@@ -32,34 +33,25 @@
 //Compression
 #define PNG_COMPRESSION_STANDARD 0
 
-typedef struct pngSignature{
+struct pngSignature{
     uint64 signature;
-}pngSignature;
+}__attribute__((packed));
 
-struct chunkIdent{
+struct pngChunk{
     uint32 length;
     uint32 type;
 }__attribute__((packed));
 
-typedef struct pngIHDR{
-    struct chunkIdent ident;
+struct IHDR{
+    struct pngChunk chunk;
     uint32 width;
     uint32 height;
     uint8 depth;
-    uint8 colorType;
+    uint8 type;
     uint8 compression;
     uint8 filter;
     uint8 interlace;
-}pngIHDR;
+}__attribute__((packed));
 
-typedef struct pngIDAT{
-    struct chunkIdent ident;
-}pngIDAT;
-
-typedef struct pngIEND{
-    struct chunkIdent ident;
-}pngIEND;
-
-extern void readPNG(void *data);
-
-#define NEXT_CHUNK(ident) ((struct chunkIdent*)((uint64)ident+ident->length+sizeof(struct chunkIdent)+4))
+extern void drawPNG(FILE *fl);
+*/

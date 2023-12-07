@@ -51,7 +51,6 @@ ret
 %macro ISR_ERROR_CODE 1
 	[GLOBAL isr%1]
 	isr%1:
-    cli
     pushall
     mov rdi, %1
     mov rsi, rsp
@@ -66,7 +65,6 @@ ret
 %macro ISR_NO_ERROR_CODE 1
 	[GLOBAL isr%1]
 	isr%1:
-		cli
     push qword 0x0
     pushall
     mov rdi, %1
@@ -115,7 +113,7 @@ ISR_NO_ERROR_CODE 17
 ISR_NO_ERROR_CODE 18
 ISR_NO_ERROR_CODE 19
 ISR_NO_ERROR_CODE 20
-ISR_NO_ERROR_CODE 21
+ISR_ERROR_CODE 21
 ISR_NO_ERROR_CODE 22
 ISR_NO_ERROR_CODE 23
 ISR_NO_ERROR_CODE 24
@@ -142,3 +140,25 @@ IRQ 12, 44
 IRQ 13, 45
 IRQ 14, 46
 IRQ 15, 47
+
+
+[GLOBAL lapicIRQ]
+[EXTERN lbar]
+[EXTERN lapicTick]
+
+lapicIRQ:
+push rsi
+push rdi
+;Increment tick
+mov rdi, lapicTick ;Get addr
+mov rsi, [rdi] ;Get current tick
+add rsi, 0x1 ;Inc
+mov [rdi], rsi ;Mov new val
+;Send EOI
+mov rdi, lbar
+mov rsi, [rdi]
+add rsi, 0xB0
+mov [rsi], dword 0x0
+pop rdi
+pop rsi
+iretq

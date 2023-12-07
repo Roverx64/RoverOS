@@ -25,6 +25,7 @@ bool initCOMPort(uint16 port){
     outb(port+OFFSET_LCR,0x83);
     //Set FIFO
     outb(port+OFFSET_FIFO,0x27);
+    return true;
 }
 
 void writeByte(uint16 port, uint8 byte){
