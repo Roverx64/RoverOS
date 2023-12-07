@@ -157,7 +157,6 @@ hdd:
 	mcopy -i hdd.img ${OUTPUT_PATH}/Bootloader/Polarboot.efi ::/EFI/
 	mcopy -i hdd.img ${OUTPUT_PATH}/Kernel/Fortuna.bin ::/EFI/
 	mcopy -i hdd.img ./Other/console.psf ::/
-	mcopy -i hdd.img ./Other/test.bin ::/
 	mcopy -i hdd.img ./Other/polarboot.args ::/
 	$(foreach mod,$(wildcard ./Drivers/**/*.mod),mcopy -i hdd.img $(mod) ::/$(shell basename $(mod)))
     endif
@@ -185,7 +184,6 @@ polarboot: $(BOOT_FILES) $(EAS_FILES)
 fortuna: $(AS_FILES) $(KERNEL_FILES) $(LIBC_FILES) $(KLIB_FILES)
 	${LD} -T${OTHER_PATH}/linker.ld ${OUTPUT_PATH}/Kernel/*.o -o ${OUTPUT_PATH}/Kernel/Fortuna.bin
 	${LD} -T${OTHER_PATH}/linker.ld ${OUTPUT_PATH}/Kernel/*.o -o ${OUTPUT_PATH}/Kernel/Fortuna.o
-	${AS} -fbin ${OTHER_PATH}/test.asm -o ${OTHER_PATH}/test.bin
 	objcopy --only-keep-debug ${OUTPUT_PATH}/Kernel/Fortuna.o ${OTHER_PATH}/Fortuna.sym
 
 #===Builds the ramdisk

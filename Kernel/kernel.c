@@ -45,7 +45,7 @@ void kmain(struct bootInfo *kinf){
     initTSS(stackTop);
     registerSyscall(testsys,0x0);
     //initMultitasking();
-    loadModule(kinf->testELF);
+    //loadModule(kinf->testELF);
     //initRamdisk((void*)kinf->load.rdptr);
     initACPI(kinf);
     initPCI();

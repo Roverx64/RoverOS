@@ -22,7 +22,6 @@ intHandler generalProtectionFault(registers reg){
         break;
     }
     kdebug(DNONE," entry #0x%x\n",(uint32)(reg.ec>>3)&0x1FFF);
-    printGDTEntry((reg.ec>>3)&0x1FFF);
     //dumpRegisters(reg);
     readInstruction(reg.rip);
     kdebug(DNONE,"#====================================#\n");
