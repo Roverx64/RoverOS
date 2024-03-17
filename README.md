@@ -7,24 +7,16 @@ This is an update from legacy x86 RoverOS and the x64 GRUB bootloader.
 RoverOS is named after my dog, and that is where my username comes from as well.  
 
 ### Planned for next update
-Things I will try to add in the near future
-* PSF for a basic font
-* Basic GUI
-* More in-depth fault handlers
-* Instruction decoding for debugging
-* Multitasking
-* XHCI
-* Drivers
+Things I will try to add in the next update
+* Buddy & SLAB memory allocator
+* Barebones XHCI support
+* MSI/X support
 
 ### Planned features
-These are things I will likely add in the future
-* AHCI
-* TTF support
-* Networking
-* Custom libc (Likely not POSIX compliant)
-* Auto makefile config
-* ARM (aarch64) support, raspberrypi 3/4 will be the intended platforms
-* Proper UI implementation over legacy x86 RoverOS
+These are things I will likely add/do in the near future
+* AHCI support
+* Generic USB device drivers
+* Reduced amount of C files
 
 ### Unsupported hardware
 * Non UEFI machines
@@ -35,10 +27,6 @@ These are things I will likely add in the future
 ### Screenshot (x86_64)
 ![RoverOS-UEFI](https://user-images.githubusercontent.com/111342077/232359539-c0e2b337-8fb0-42e7-8936-c9a702981144.png)
 
-
-### Known issues
-* Shift key acts as an enter key on real hardware with ASUS UEFI
-* Keyboard inputs are unreasonably slow with MSI UEFI (This may be an MSI firmware issue)
 ---
 ### Requirements
 Things needed for both architectures
