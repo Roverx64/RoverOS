@@ -1,57 +1,49 @@
 #include <stdint.h>
 #include <port.h>
+#include <kmalloc.h>
 #include "pci.h"
 #include "debug.h"
 #include "paging.h"
 
-uint32 readPCI32(uint16 addr){
-    return ind(addr);
+struct pciInfo pci;
+uint16_t alloc = 10;
+
+uint32_t getPCIData(uint32_t bus, uint32_t dev, uint32_t fn, uint32_t reg){
+    outd(PCI_CONFIG_ADDRESS,((uint32_t)1<<31)|(bus<<16)|(dev<<11)|(fn<<8)|(reg&0xFC));
+    return ind(PCI_CONFIG_DATA);
 }
 
-void writePCI32(uint16 addr, uint32 data){
-    outd(addr,data);
+void setPCIData(uint32_t bus, uint32_t dev, uint32_t fn, uint32_t reg, uint32_t value){
+    outd(PCI_CONFIG_ADDRESS,((uint32_t)1<<31)|(bus<<16)|(dev<<11)|(fn<<8)|(reg&0xFC));
+    outd(PCI_CONFIG_DATA,value);
 }
 
-void writePCIAddress(uint8 bus, uint8 dev, uint8 fn, uint8 reg){
-    uint32 bus32 = (uint32)bus;
-    uint32 dev32 = (uint32)dev;
-    uint32 fn32 = (uint32)fn;
-    uint32 reg32 = (uint32)reg;
-    writePCI32(CONFIG_ADDRESS,((uint32)1<<31)|(bus32<<16)|(dev32<<11)|(fn32<<8)|(reg32&0xFC));
-}
-
-uint16 devn = 0;
-
-void scanBus(uint8 bus){
-    uint8 devices[257];
-    for(uint16 i = 0; i <= 255; ++i){
-        writePCIAddress(bus,i,0,0);
-        uint32 vendor = readPCI32(CONFIG_DATA)&0xFFFF;
-        if((vendor&0xFFFF) == 0xFFFF){continue;}
-        devices[devn] = i;
-        ++devn;
-        writePCIAddress(bus,i,0,PCI_HEADER_CLASS);
-        uint32 class = readPCI32(CONFIG_DATA);
-        uint32 subclass = (class&0xFF0000)>>16;
-        class = (class&0xFF000000)>>24;
-        writePCIAddress(bus,i,0,PCI_HEADER_DEVICEID);
-        uint32 devid = (readPCI32(CONFIG_DATA)&0xFFFF0000)>>16;
-        writePCIAddress(bus,i,0,PCI_HEADER_SUBCLASS);
-        uint32 subsys = (readPCI32(CONFIG_DATA)&0xFFFF0000)>>16;
-        kdebug(DNONE,"[B:0x%x]-->[P:0x%x]->[V:%x|C:%x|S:%x|D:%x|Y:%x]",bus,(uint32)i,vendor,class,subclass,devid,subsys);
-        //TODO: Detect XHCI,AHCI,etc based on the other PCI fields
-        if(vendor == 0x1b36 && devid == 0xd){kdebug(DNONE," XHCI\n"); initXHCI(bus,i); continue;}
-        if(vendor == 0x1234 && devid == 0x1111){kdebug(DNONE," BGA");}
-        if(vendor == PCI_VENDOR_INTEL && devid == 0x1237){kdebug(DNONE," PMC Natoma");}
-        if(vendor == PCI_VENDOR_INTEL && devid == 0x7000){kdebug(DNONE," ISA Natoma/Triton");}
-        if(vendor == PCI_VENDOR_INTEL && devid == 0x100e){kdebug(DNONE," Gbit Ethernet");}
-        if(vendor == PCI_VENDOR_INTEL && devid == 0x2922){kdebug(DNONE," AHCI\n"); initAHCI(bus,i); continue;}
-        kdebug(DNONE,"\n");
+void scanBus(uint8_t bus){
+    for(int i = 0; i < 255; ++i){
+        uint32_t vendor = getPCIData(bus,i,0,PCI_HEADER_VENDOR);
+        if(vendor >= 0xFF){continue;}
+        uint32_t deviceCode = 0x0;
+        deviceCode |= getPCIData(bus,i,0,PCI_HEADER_CLASS);
+        deviceCode |= (getPCIData(bus,i,0,PCI_HEADER_SUBCLASS)<<8);
+        deviceCode |= (getPCIData(bus,i,0,PCI_HEADER_DEVICEID)<<16);
+        pci.device[pci.deviceCount].deviceCode = deviceCode;
+        pci.device[pci.deviceCount].bus = bus;
+        pci.device[pci.deviceCount].behindBridge = false;
+        pci.device[pci.deviceCount].bridge = 0;
+        kdebug(DINFO,"Found device on bus 0x%lx with code 0x%lx from vendor 0x%lx\n",bus,deviceCode,vendor);
+        ++pci.deviceCount;
+        //Ensure we have room for more
+        if(pci.deviceCount >= alloc){
+            alloc += 10;
+            pci.device = (struct pciDeviceInfo*)krealloc(pci.device,sizeof(struct pciDeviceInfo)*alloc);
+        }
     }
 }
 
 void initPCI(){
     kdebug(DINFO,"Scanning PCI\n");
-    scanBus(0);
-    kdebug(DINFO,"Enumerated 0x%x PCI devices\n",(uint32)devn);
+    pci.device = (struct pciDeviceInfo*)kmalloc(sizeof(struct pciDeviceInfo)*alloc);
+    scanBus(0); //Qemu has everything on this bus, but this should be changed to check other buses
+    pci.device = (struct pciDeviceInfo*)krealloc(pci.device,sizeof(struct pciDeviceInfo)*pci.deviceCount);
+    kdebug(DINFO,"Enumerated 0x%lx PCI devices\n",(uint64_t)pci.deviceCount);
 }

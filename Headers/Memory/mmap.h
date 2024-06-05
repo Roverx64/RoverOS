@@ -9,14 +9,12 @@
 #define MMAP_TYPE_ACPI 0x5
 #define MMAP_TYPE_RESV 0x6
 #define MMAP_TYPE_UNUSABLE 0x7
-#define MMAP_MAGIC 0xAEFADEAD
-#define MMAP_ATTRIBUTE_KERNEL 1<<0
+#define MMAP_MAGIC 0xAEFADEADAEFADEAD
 
 typedef struct mmapEntry{
-    uint32 magic;
-    uint16 type;
-    uint16 attributes;
-    uint64 phys; //Should generally be identity mapped
-    uint64 virt;
-    uint32 bytes;
+    uint64_t magic;
+    uint64_t type;
+    uint64_t phys;
+    uint64_t virt;
+    uint64_t bytes;
 }mmapEntry;

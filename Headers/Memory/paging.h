@@ -14,8 +14,12 @@
 #define PG_2M 1<<7
 #define PG_GLOBAL 1<<8
 #define PG_PAT 1<<12
-#define PG_NX (uint64)1<<63
-#define PG_WC 1<<12
+#define PG_NX (uint64_t)1<<63
+#define PG_UC PG_PWT|PG_PAT|PG_PCD
+#define PG_WC PG_PWT
+#define PG_WB PG_PAT
+#define PG_WP 0 //This type is not currently in the PAT
+#define PG_WT PG_PAT|PG_PWT
 
 #define PG_IS_PRESENT(pg) (pg&0x1)
 #define PG_IS_WRITEABLE(pg) ((pg>>1)&0x1)
@@ -25,6 +29,7 @@
 #define PG_IS_WC(pg) ((pg>>12)&0x1)
 #define PG_IS_NX(pg) (pg>>63)
 
+#define PAGE_LEVEL 4
 #define CANONICAL_FORM 0x00000FFFFFFFFFFFF
 #define PAGE_SZ 0x1000 //4KB pages
 #define PAGE_ALIGN 0xFFFFFFFFFFFFF000
@@ -38,16 +43,24 @@
 
 #define TABLE_BASE(entry) ((entry)&BASE_MASK)
 
-#define KALIGN(addr) ((uint64)addr&PAGE_ALIGN)
-#define IS_UNALIGNED(addr) ((uint64)addr&0xFFF)
+#define KALIGN(addr) ((uint64_t)addr&PAGE_ALIGN)
+#define IS_UNALIGNED(addr) ((uint64_t)addr&0xFFF)
 
-extern uint64 getPageInfo(uint64 cr3, uint64 virt);
-extern void mapPage(pageSpace *space, uint64 phys, uint64 virt, bool write, bool user, bool execute, bool wc, bool make);
-extern void kmapPage(uint64 phys, uint64 virt, bool write, bool user, bool execute, bool wc, uint64 flagsin, bool make);
-extern void *kallocatePages(uint64 phys, bool write, bool user, bool execute, bool wc, uint32 pages, uint64 flags);
-extern void mapPages(pageSpace *space, uint64 phys, uint64 virt, bool write, bool user, bool execute, bool wc, bool make, uint32 pages);
-extern void setCR3(uint64 cr3);
-extern void copyKpages(pageSpace *dest, uint64 virt, bool make, uint32 pages);
-extern void dumpVPath(pageSpace *space, uint64 virt);
-extern void unmapPage(pageSpace *space, uint64 virt);
-extern void invlpg(uint64 addr);
+#define PAGE_FLAG_UC 1<<0
+#define PAGE_FLAG_WC 1<<1 //NOTE: WC is set to the PA1 register. Only PWT bit needs to be set to use WC
+#define PAGE_FLAG_WB 1<<2
+#define PAGE_FLAG_WP 1<<3
+#define PAGE_FLAG_WT 1<<4
+#define PAGE_FLAG_WRITE 1<<5
+#define PAGE_FLAG_USER 1<<6
+#define PAGE_FLAG_EXECUTE 1<<7
+#define PAGE_FLAG_MAKE 1<<8
+
+extern uint64_t getPageInfo(uint64_t cr3, uint64_t virt);
+extern void mapPage(pageSpace *space, uint64_t phys, uint64_t virt, uint64_t flags);
+extern void kmapPage(uint64_t phys, uint64_t virt, uint64_t flags);
+extern void mapPages(pageSpace *space, uint64_t phys, uint64_t virt, uint64_t flags, uint32_t pages);
+extern void setCR3(uint64_t cr3);
+extern void unmapPage(pageSpace *space, uint64_t virt);
+extern void invlpg(uint64_t addr);
+extern uint64_t virtToPhys(pageSpace *space, uint64_t virt);

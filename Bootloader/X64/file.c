@@ -1,5 +1,6 @@
 #include <efi.h>
 #include <efilib.h>
+#include <stdint.h>
 #include "boot.h"
 #include "bootFile.h"
 
@@ -20,19 +21,19 @@ EFI_STATUS getFileInfo(EFIFile *file){
     return EFI_SUCCESS;
 }
 
-uint64 getFilePos(EFIFile *file){
-    uint64 pos = 0x0;
-    EFI_STATUS status = uefi_call_wrapper(file->File->GetPosition,2,file->File,&pos);
+uint64_t getFilePos(EFIFile *file){
+    uint64_t pos = 0x0;
+    (void)uefi_call_wrapper(file->File->GetPosition,2,file->File,&pos);
     return pos;
 }
 
-EFI_STATUS setFilePos(EFIFile *file, uint64 pos){
+EFI_STATUS setFilePos(EFIFile *file, uint64_t pos){
     EFI_STATUS status = uefi_call_wrapper(file->File->SetPosition,2,file->File,pos);
     if(EFI_ERROR(status)){return status;}
     return EFI_SUCCESS;
 }
 
-EFI_STATUS openFile(EFIFile *file, uint16 *name, uint64 mode, uint64 flags){
+EFI_STATUS openFile(EFIFile *file, uint16_t *name, uint64_t mode, uint64_t flags){
     file->name = name;
     file->flags = flags|EFI_FILE_SYSTEM;
     file->mode = mode;
@@ -55,4 +56,5 @@ EFI_STATUS closeFile(EFIFile *file){
 
 EFI_STATUS closeVolume(EFIFile *file){
     uefi_call_wrapper(file->Volume->Close,1,file->Volume);
+    return EFI_SUCCESS;
 }

@@ -4,12 +4,15 @@ ifeq (${arch},aarch64)
 $(info [!]Targeting aarch64)
 $(info [W]aarch64 is not yet supported)
 TARGET = A64
+EMU = ${AARCH64_EMU}
 else ifeq (${arch},x86_64)
 $(info [!]Targeting AMD64)
 TARGET = X64
+EMU = ${x86_64_EMU}
 else
 $(info [!]No arch specified, defaulting to x86_64)
 TARGET = X64
+EMU = ${x86_64_EMU}
 endif
 #=====Misc=====#
 ifeq (${lds_patch},0)
@@ -33,22 +36,22 @@ ECC = gcc
 #===AS Flags===#
 AS_FLAGS = -g -Fdwarf -felf64
 #====C Flags===#
-CFLAGS = -mcmodel=kernel -Wall -Wextra -mgeneral-regs-only -fno-pic -fno-stack-protector -fno-stack-check -Wno-format -Wno-unused-variable -Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-implicit-function-declaration -ffreestanding -m64 -mno-red-zone -c -ggdb
+CFLAGS = -Wall -Wextra -mgeneral-regs-only -fno-stack-protector -fno-stack-check -ffreestanding -m64 -mno-red-zone -c -ggdb -Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-unused-variable
 LDFLAGS = -m elf_x86_64 -nostdlib -T ${OTHER_PATH}/linker.ld -L./klib -L./libc
 ifeq (${werror},1)
 CFLAGS += -Werror
 endif
 #==EFI Flags===#
-EFLAGS = -Wno-implicit-int -mgeneral-regs-only -fpic -ffreestanding -fno-stack-protector -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -Wno-packed-bitfield-compat -c
+EFLAGS = -Wno-implicit-int -mgeneral-regs-only -Wall -Wextra -fpic -ffreestanding -fno-stack-protector -fshort-wchar -mno-red-zone -maccumulate-outgoing-args -Wno-packed-bitfield-compat -c
 ELD_FLAGS = -shared -Bsymbolic -L./gnuefi/x86_64/lib -L./gnuefi/x86_64/gnuefi ./gnuefi/x86_64/gnuefi/crt0-efi-x86_64.o
 ifeq (${LDS_PATCH},1)
-ELD_FLAGS += -T${OTHER_PATH}/elf_x86_64_efi.lds
+ELD_FLAGS += -T${OTHER_PATH}/gnuefi.lds
 else
 ELD_FLAGS += -T./gnuefi/gnuefi/elf_x86_64_efi.lds
 endif
 #====Include===#
 INCLUDE := $(subst ./,-I./,$(wildcard ./Headers/*) $(wildcard ./Headers/**/**/) $(wildcard ./Headers/libc/*) $(wildcard ./Headers/klib/*)) -I./Drivers/Headers
-EINCLUDE = -I${EFI_PATH}/Include -I./Bootloader/Headers -I./Bootloader/Headers/${TARGET} -I./Headers/System -I./Headers/Memory -I./Drivers/Headers
+EINCLUDE = -I${EFI_PATH}/Include -I./Bootloader/Headers -I./Headers/Media -I./Bootloader/Headers/${TARGET} -I./Headers/System -I./Headers/Memory -I./Drivers/Headers -I./Headers/Misc
 RD_INCLUDE := $(subst ./,-I./,$(wildcard ./Headers/*))
 #=====Qemu=====#
 QARGS = -m 6G -d cpu_reset,int
@@ -58,11 +61,6 @@ QARGS += -D ${OTHER_PATH}/qemu.log -cdrom ./RoverOS.iso
 QARGS += -serial file:${OTHER_PATH}/RoverOS.log
 QARGS += -drive format=raw,file=hdd.img
 QARGS += -monitor stdio ${EXPERIMENTAL_ARGS}
-ifeq (${TARGET},A64)
-EMU = ${AARCH64_EMU}
-else
-EMU = ${x86_64_EMU}
-endif
 #====Other=====#
 #GDB
 ifeq (${gdb},1)
@@ -82,9 +80,8 @@ endif
 #Module makefiles
 MK_FILES := $(wildcard ./Drivers/**/Makefile)
 #C files
-KERNEL_FILES := $(subst .c,_kernel.o,$(wildcard ./Kernel/**/*.c) $(wildcard ./Kernel/*.c) $(wildcard ./Kernel/**/${TARGET}/*.c) $(wildcard ./Kernel/**/${TARGET}/**/*.c))
+KERNEL_FILES := $(subst .c,_kernel.o,$(wildcard ./Kernel/**/*.c) $(wildcard ./Kernel/*.c) $(wildcard ./Kernel/System/ACPI/*.c) $(wildcard ./Kernel/**/${TARGET}/*.c) $(wildcard ./Kernel/**/${TARGET}/**/*.c))
 LIBC_FILES := $(subst .c,_libc.o,$(wildcard ./libc/**/*.c))
-KLIB_FILES := $(subst .c,_klib.o,$(wildcard ./klib/**/*.c))
 #Assembly
 AS_FILES := $(subst .asm,_asm.o,$(wildcard ./Kernel/ASM/X64/*.asm))
 EAS_FILES := $(subst .asm,_easm.o,$(wildcard ./Bootloader/X64/*.asm))
@@ -98,17 +95,15 @@ BOOT_FILES := $(subst .c,_efi.o,$(wildcard ./Bootloader/X64/*.c))
 %_easm.o: $(notdir %.asm)
 	${AS} ${AS_FLAGS} ./$< -o "${OUTPUT_PATH}/Bootloader/$(@F)"
 %_kernel.o: $(notdir %.c)
-	${CR} ${CFLAGS} ${INCLUDE} ./$< -o "${OUTPUT_PATH}/Kernel/$(@F)"
+	${CR} ${CFLAGS} -fno-pic -mcmodel=kernel ${INCLUDE} ./$< -o "${OUTPUT_PATH}/Kernel/$(@F)"
 %_libc.o: $(notdir %.c)
-	${CR} ${CFLAGS} ${INCLUDE} ./$< -o "${OUTPUT_PATH}/Kernel/$(@F)"
-%_klib.o: $(notdir %.c)
-	${CR} ${CFLAGS} ${INCLUDE} ./$< -o ${OUTPUT_PATH}/Kernel/$(@F)
+	${CR} ${CFLAGS} -fPIC ${INCLUDE} ./$< -o "${OUTPUT_PATH}/libc/$(@F)"
 %_efi.o: $(notdir %.c)
 	${CR} ${EFLAGS} ${EINCLUDE} ./$< -o ${OUTPUT_PATH}/Bootloader/$(@F)
 %_mod.o: $(notdir %.c)
 	${CR} ${MFLAGS} ${MINCLUDE} ./$< -o ./$(@F)
 
-all: check polarboot bootargs mod fortuna ramdisk hdd iso usbcpy clean
+all: check polarboot bootargs fortuna ramdisk hdd iso usbcpy clean
     ifeq (${gdb},1)
 	objdump -h ${OUTPUT_PATH}/Bootloader/Polarboot.efi
     endif
@@ -152,20 +147,13 @@ hdd:
 	mmd -i hdd.img ::/Binaries
 	mmd -i hdd.img ::/EFI
 	mmd -i hdd.img ::/MOD
-	mcopy -i hdd.img ${OUTPUT_PATH}/Kernel/Fortuna.bin ::/
 	mcopy -i hdd.img ./Ramdisk/initrd.disk ::/
 	mcopy -i hdd.img ${OUTPUT_PATH}/Bootloader/Polarboot.efi ::/EFI/
-	mcopy -i hdd.img ${OUTPUT_PATH}/Kernel/Fortuna.bin ::/EFI/
+	mcopy -i hdd.img ${OUTPUT_PATH}/Kernel/Fortuna.bin ::/
 	mcopy -i hdd.img ./Other/console.psf ::/
 	mcopy -i hdd.img ./Other/polarboot.args ::/
-	$(foreach mod,$(wildcard ./Drivers/**/*.mod),mcopy -i hdd.img $(mod) ::/$(shell basename $(mod)))
+	$(foreach mod,$(wildcard ./Drivers/**/*.rkx),mcopy -i hdd.img $(mod) ::/$(shell basename $(mod)))
     endif
-
-#===Outputs debug info for EFI debugging
-dprint:
-	@grep "Image base: 0x" ./Other/RoverOS.log
-	@objdump -h ./Output/Bootloader/Polarboot.efi
-#add-symbol-file ./Other/Polarboot.sym 0xBDF1F000 -s .data 0xBDF1D000
 
 #==Compiles bootargs
 bootargs:
@@ -181,10 +169,17 @@ polarboot: $(BOOT_FILES) $(EAS_FILES)
 	objcopy -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel -j .rela -j .reloc --target=efi-app-x86_64 ${OUTPUT_PATH}/Bootloader/Polarboot.so ${OUTPUT_PATH}/Bootloader/Polarboot.efi
 
 #===Builds the kernel
-fortuna: $(AS_FILES) $(KERNEL_FILES) $(LIBC_FILES) $(KLIB_FILES)
-	${LD} -T${OTHER_PATH}/linker.ld ${OUTPUT_PATH}/Kernel/*.o -o ${OUTPUT_PATH}/Kernel/Fortuna.bin
-	${LD} -T${OTHER_PATH}/linker.ld ${OUTPUT_PATH}/Kernel/*.o -o ${OUTPUT_PATH}/Kernel/Fortuna.o
+fortuna: $(AS_FILES) $(KERNEL_FILES) $(LIBC_FILES)
+	${LD} -T${OTHER_PATH}/kernel.ld ${OUTPUT_PATH}/Kernel/*.o -o ${OUTPUT_PATH}/Kernel/Fortuna.bin
+	${LD} -T${OTHER_PATH}/kernel.ld ${OUTPUT_PATH}/Kernel/*.o -o ${OUTPUT_PATH}/Kernel/Fortuna.o
 	objcopy --only-keep-debug ${OUTPUT_PATH}/Kernel/Fortuna.o ${OTHER_PATH}/Fortuna.sym
+
+#===Builds libc
+libc: $(LIBC_FILES)
+	${LD} -T${OTHER_PATH}/libc.ld ${OUTPUT_PATH}/libc/*.o -o ${OUTPUT_PATH}/libc/libc.bin
+	${LD} -T${OTHER_PATH}/libc.ld ${OUTPUT_PATH}/libc/*.o -o ${OUTPUT_PATH}/libc/libc.o
+	cp ${OUTPUT_PATH}/libc/libc.o ${OUTPUT_PATH}/Kernel/libc.o
+	objcopy --only-keep-debug ${OUTPUT_PATH}/libc/libc.o ${OTHER_PATH}/libc.sym
 
 #===Builds the ramdisk
 ramdisk:
@@ -205,6 +200,7 @@ check:
 	@$(if $(shell command -v mkfs.vfat),echo [!]Found mkfs.vfat, echo [X]No mkfs.vfat;failHere)
 	@$(if $(shell command -v mmd),echo [!]Found mmd, echo [X]No mmd;failHere)
 	@$(if $(shell command -v mcopy),echo [!]Found mcopy, echo [X]No git;failHere)
+	@$(if $(shell command -v basename),echo [!]Found basename, echo [X]No basename;failHere)
 	@echo [!]Checking paths
 	@$(if $(wildcard ${EFI_PATH}),,$(shell mkdir ${EFI_PATH}))
 	@$(if $(wildcard ${EFI_PATH}/Include),,mkdir ${EFI_PATH}/Include)
@@ -212,6 +208,7 @@ check:
 	@$(if $(wildcard ${OUTPUT_PATH}),,$(shell mkdir ${OUTPUT_PATH}))
 	@$(if $(wildcard ${OUTPUT_PATH}/Bootloader),,$(shell mkdir ${OUTPUT_PATH}/Bootloader))
 	@$(if $(wildcard ${OUTPUT_PATH}/Kernel),,$(shell mkdir ${OUTPUT_PATH}/Kernel))
+	@$(if $(wildcard ${OUTPUT_PATH}/libc),,$(shell mkdir ${OUTPUT_PATH}/libc))
 	@echo [!]Checking for gnuefi
     ifeq ("$(wildcard ./gnuefi)","")
 	@echo [!]Cloning gnuefi
@@ -224,16 +221,18 @@ check:
 	cp -r ./gnuefi/x86_64/gnuefi ${EFI_PATH}
 	cp ./gnuefi/gnuefi/elf_x86_64_efi.lds ${EFI_PATH}/gnuefi/elf_x86_64_efi.lds
     else
-	@echo "[!]gnuefi found"
+	@echo [!]gnuefi found
     endif
-
+#===Cleans all object files
 clean:
 	$(shell find . -path ./gnuefi -prune -o -name '*.o' -exec rm {} \;)
 	$(shell find . -path ./gnuefi -prune -o -name '*.mod' -exec rm {} \;)
 	$(shell find . -path ./gnuefi -prune -o -name '*.so' -exec rm {} \;)
+	$(shell find . -path ./gnuefi -prune -o -name '*.rkx' -exec rm {} \;)
+	$(shell find . -path ./gnuefi -prune -o -name '*.a' -exec rm {} \;)
 	$(shell find . -name *.tmp -exec rm {} \;)
 	@echo "[!]Cleaned all object files"
-
+#===Resets directory back to its intial state
 reset:
 	$(if $(wildcard ${EFI_PATH}),rm -r ${EFI_PATH},)
 	$(if $(wildcard ./gnuefi),rm -rf ./gnuefi,)

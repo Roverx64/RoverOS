@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <debug.h>
-#include <registers.h>
-#include "instruction.h"
+#include <instruction.h>
+#include <cpu.h>
 
-void printOperand(uint8 op, bool qword, bool addr){
+void printOperand(uint8_t op, bool qword, bool addr){
     if(addr){kdebug(DNONE,"[");}
     if(qword){kdebug(DNONE,"R");}else{kdebug(DNONE,"E");}
     switch(op){
@@ -35,11 +35,11 @@ void printOperand(uint8 op, bool qword, bool addr){
     if(addr){kdebug(DNONE,"]");}
 }
 
-void readInstruction(uint64 rip){
-    uint8 *ins = (uint8*)rip;
+void readInstruction(uint64_t rip){
+    uint8_t *ins = (uint8_t*)rip;
     kdebug(DNONE,"0x%lx: ",rip);
-    uint8 rex = ins[0];
-    uint8 opcode = 0x0;
+    uint8_t rex = ins[0];
+    uint8_t opcode = 0x0;
     //Opcode
     if((rex>>4) == 0x4){
         kdebug(DNONE,"REX[");

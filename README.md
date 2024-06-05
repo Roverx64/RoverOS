@@ -1,14 +1,12 @@
 # RoverOS
 
 ### About
-RoverOS is a hobby OS developed by one person.  
-It is certain to have bugs and oversights.  
-This is an update from legacy x86 RoverOS and the x64 GRUB bootloader.  
-RoverOS is named after my dog, and that is where my username comes from as well.  
+RoverOS is a hobby OS developed by one person that is certain to have some bugs and oversights.  
+The 'Rover' in RoverOS is taken from my dogs name, and that is where my username comes from as well.
+There is no specific goal of this OS/Kernel, it is just for fun and to learn more about OS internals.  
 
 ### Planned for next update
 Things I will try to add in the next update
-* Buddy & SLAB memory allocator
 * Barebones XHCI support
 * MSI/X support
 
@@ -24,9 +22,6 @@ These are things I will likely add/do in the near future
 * Non x64 (64 bit) CPUs
 * Aarch32 only CPUs
 
-### Screenshot (x86_64)
-![RoverOS-UEFI](https://user-images.githubusercontent.com/111342077/232359539-c0e2b337-8fb0-42e7-8936-c9a702981144.png)
-
 ---
 ### Requirements
 Things needed for both architectures
@@ -35,7 +30,7 @@ Things needed for both architectures
 * `Make`
 
 ### x86_64 requirements
-Things needed for only the AMD64 architecture
+Tools needed for AMD64
 * `ovmf` (I suggest looking up how to get ovmf for your distro)
 * `nasm`
 * `mtools`
@@ -44,13 +39,14 @@ Things needed for only the AMD64 architecture
 * `qemu-system-x86_64`
 
 ### ARM requirements
-Things needed for only the ARM64 architecture
+Tools needed for Aarch64
 * `arm-none-eabi-as`
 * `arm-none-eabi-ld`
 * `qemu-system-aarch64`
+* `xorriso`
 
 ### Other make options
-Add to the makefile arguments to use them `make arch=DESIRED_ARCH <arg>=<value>`
+Add to the makefile arguments to use them `make arch=<target_arch> <arg>=<value>`
 * `kvm` set to `1` to enable kvm emulator
 * `hdd` set to `1` to enable copying to a real hdd
 * `gdb` set to `1` to enable the use of gdb with qemu
@@ -64,8 +60,8 @@ Example: `OVMF_PATH = /use/share/qemu`
 #### RoverOS
 1. Ensure all vars are set as required above
 2. cd to the base of the RoverOS folder (where the Makefile is)
-3. run `make arch=DESIRED_ARCH` to compile and run the EFI application
-* `Replace 'DESIRED_ARCH' with either 'x86_64' or 'aarch64'. It is case sensitive`
+3. run `make arch=<target_arch>` to compile and run the EFI application
+* `Replace '<target_arch>' with either 'x86_64' or 'aarch64'. It is case sensitive`
 
 # Real hardware (Empty FAT32 Partiton needed)
 #### Requirements for AMD64
@@ -82,11 +78,11 @@ Example: `HDD_PATH = /media/rover/C4D3-DC2C`
 #### GRUB
 * Put the following in your `40_custom` grub file.
 * set the root to your FAT32 partition 
-* hd# where # is the HDD number, gpt# where # is the partition number
+* hd# where # is the HDD/SSD number, gpt# where # is the partition number
 ```
 menuentry "RoverOS" {
         set root='hd#,gpt#'
-        chainloader /ROSBootloader.efi
+        chainloader /Polarboot.efi
 }
 ```
 This file is at `/etc/grub.d/` for Ubuntu  

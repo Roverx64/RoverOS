@@ -1,120 +1,106 @@
 #include <stdint.h>
+#include <mutex.h>
+#include <port.h>
+#include <cpuid.h>
+#include <cpu.h>
+#include <ramdisk.h>
+#include <kmalloc.h>
+#include <string.h>
 #include "acpi.h"
 #include "lapic.h"
 #include "paging.h"
-#include "mmio.h"
 #include "debug.h"
-#include "interrupt.h"
 #include "kernel.h"
+#include <vmm.h>
+#include <pmm.h>
 
-uint64 lbar = 0x0;
-uint64 lapicTick = 0x0;
 extern void lapicIRQ(void);
 extern bool hasDeadline(void);
+struct lapicDeviceInfo *lapic;
+uint16_t apInit = 0;
+uint16_t apCount = 0;
+mutex_t lapicLock = 0;
+extern pageSpace kspace;
 
-static inline uint32_t readLapic(uint64 bar, uint64 reg){
-    uint32 v = 0;
-    rdmmio(bar,reg,v);
-    return v;
+static void disablePIC(){
+    outb(0xA1, 0xFF);
+    outb(0x21, 0xFF);
 }
 
-static inline void writeLapic(uint64 bar, uint64 reg, uint32 data, bool preserve){
-    uint32 write = 0x0;
-    if(preserve){rdmmio((uint64)bar,reg,write);}
-    write = write|data;
-    wdmmio(bar,reg,write);
+static inline uint32_t readLapic(uint16_t apn, uint64_t reg){
+    if(lapic[apn].x2apic){return (uint32_t)rdmsr(LAPIC_MSR_BASE+reg);}
+    return rdmmio((uint64_t)lapic[apn].bar,reg);
 }
 
-uint64 getTick(){
-    return lapicTick;
-}
-
-intHandler lapicTimer(registers reg){
-    kdebug(DNONE,"LAPIC\n");
-    writeLapic(lbar,LAPIC_EOI,0x1,false);
-}
-
-intHandler lapicSpurriousInt(registers reg){
-    kdebug(DNONE,"Spurrious\n");
-}
-
-void setLapicInterrupts(uint64 bar){
-    writeLapic(bar,LAPIC_CMCI,14,false);
-    writeLapic(bar,LAPIC_THERMAL,14,false);
-    writeLapic(bar,LAPIC_PERFORMANCE,14,false);
-    writeLapic(bar,LAPIC_LINT0,14,false);
-    writeLapic(bar,LAPIC_LINT1,14,false);
-    writeLapic(bar,LAPIC_LVT_ERROR,14,false);
-    writeLapic(bar,LAPIC_SPURIOUS_INT,14,true);
-}
-
-void initLapicTimer(uint64 bar, uint32 count, uint8 vector){
-    writeLapic(bar,LAPIC_INITIAL_COUNT,0x0,false);
-    writeLapic(bar,LAPIC_CURRENT_COUNT,0x0,false);
-    //Set divide register
-    writeLapic(bar,LAPIC_DIVIDE_CONFIG,0x1,false);
-    //Set vector and unmask interrupts
-    uint32 data = readLapic(bar,LAPIC_TIMER);
-    data = data&0xFFFEFF00;
-    data |= vector|LAPIC_TIMER_MODE_PERIODIC;
-    writeLapic(bar,LAPIC_TIMER,data,false);
-    //Set counter
-    writeLapic(bar,LAPIC_INITIAL_COUNT,count,false);
-}
-
-void initDeadlineTimer(uint64 bar, uint8 vector){
-
-}
-
-void wakeAP(uint32 *bar, uint32 apicid){
-
-}
-
-void calibrateLapic(){
-    
-}
-
-void setDeadline(uint64 time){
-    uint64 lower = time&0xFFFFFFFF;
-    uint64 upper = time>>32;
-    LAPIC_SET_DEADLINE(upper,lower);
-}
-
-void startDeadline(){
-    
-}
-
-void deadlineIRQ(){
-    kdebug(DNONE,"DEADLINE\n");
-}
-
-void initLapic(uint32 *bar32){
-    uint64 bar = (uint64)bar32;
-    lbar = bar;
-    kdebug(DNONE,"Initilizing lapic\n");
-    kdebug(DNONE,"BAR: 0x%lx\n",(uint64)bar);
-    kmapPage(KALIGN((uint64)bar),KALIGN((uint64)bar),true,false,false,false,PG_PCD,true);
-    uint64 id = readLapic(bar,LAPIC_ID);
-    uint64 ver = readLapic(bar,LAPIC_VER);
-    kdebug(DNONE,"LAPIC 0x%lx Ver 0x%lx\n",id,ver&0xFF);
-    sysinf.time.hasDeadline = hasDeadline();
-    kdebug(DNONE,"TSC-Deadline: ");
-    if(sysinf.time.hasDeadline){
-        kdebug(DNONE,"Present\n");
-        overrideIDTEntry(30,deadlineIRQ);
-        initDeadlineTimer(bar,30);
-        sysinf.time.deadlinetpms = 10;
-        goto end;
+static inline void writeLapic(uint16_t apn, uint64_t reg, uint64_t data, bool preserve){
+    if(lapic[apn].x2apic){
+        if(preserve){data |= rdmsr(LAPIC_MSR_BASE+reg);}
+        wrmsr(LAPIC_MSR_BASE+reg,data);
+        return;
     }
-    kdebug(DNONE,"Absent\n");
-    overrideIDTEntry(30,(void*)lapicIRQ);
-    initLapicTimer(bar,0xFF,30);
-    end:
-    //Enable lapic MSR
-    enableLapic();
-    uint32 spurr = readLapic(bar,LAPIC_SPURIOUS_INT);
-    spurr = spurr&0xFFFFFF00;
-    spurr |= LAPIC_FLAG_ENABLE_LAPIC;
-    setLapicInterrupts(bar);
-    writeLapic(bar,LAPIC_SPURIOUS_INT,spurr,false);
+    if(preserve){data |= rdmmio((uint64_t)lapic[apn].bar,reg);}
+    wdmmio((uint64_t)lapic[apn].bar,reg,data);
+}
+
+//BSP/APs call this when intilizing their lapic
+//Returns apInit
+uint64_t registerLapic(uint64_t bar, bool bsc){
+    GET_LOCK(lapicLock);
+    //Map bar as UC
+    kmapPage(bar,bar,PAGE_FLAG_UC|PAGE_FLAG_MAKE|PAGE_FLAG_WRITE);
+    lapic[apInit].bar = (void*)bar;
+    lapic[apInit].phys = bar;
+    lapic[apInit].bsc = bsc;
+    uint32_t tst = 0;
+    uint32_t trs = 0;
+    uint64_t msr = 0x0;
+    lapic[apInit].id = LAPIC_ID_AID(readLapic(apInit,LAPIC_ID));
+    //Clear CCR
+    writeLapic(apInit,LAPIC_CURRENT_COUNT,0,false);
+    wrmsr(0xCCCC,0xDEADBEEFABABFCFC);
+    //Enable APIC
+    msr = rdmsr(LAPIC_MSR_BASE);
+    msr |= LAPIC_MSR_BASE_APIC_ENABLE;
+    wrmsr(LAPIC_MSR_BASE,msr);
+    //Check for x2APIC
+    CPUID(0x1,0x0,&trs,&trs,&trs,&tst);
+    if(tst&CPUID_X2APIC_PRESENT){
+        lapic[apInit].x2apic = true;
+        //Enable x2APIC
+        msr = rdmsr(LAPIC_MSR_BASE);
+        msr |= LAPIC_MSR_BASE_X2APIC_ENABLE;
+        wrmsr(LAPIC_MSR_BASE,msr);
+        //Unmap bar
+        //kunmapPage();
+        lapic[apInit].bar = NULL;
+    }
+    else{lapic[apInit].x2apic = false;}
+    ++apInit;
+    //Calibrate lapic
+    FREE_LOCK(lapicLock);
+    return apInit-1;
+}
+
+void writeNewTaskTimer(uint16_t id, uint32_t ticks){
+    writeLapic(id,LAPIC_EOI,0,false);
+    writeLapic(id,LAPIC_INITIAL_COUNT,ticks,false); //Time slice
+}
+
+void initLapic(uint32_t bar, uint16_t apCount, void *wakeup){
+    disablePIC();
+    lapic = (struct lapicDeviceInfo*)kmalloc(sizeof(struct lapicDeviceInfo)*apCount);
+    uint64_t ap = registerLapic((uint64_t)bar,true);
+    kdebug(DINFO,"Initilized lapic\n");
+    //Load Coreboot from ramdisk and load to low mem
+    /*struct rdFile *coreboot = openRamdiskFile("coreboot.bin");
+    uint64_t phys = allocPhys(ORDER_MIN_BLOCK_SIZE,MEMORY_TYPE_1MB,ORDER_FLAG_STRICT_MATCH);
+    kmapPage(phys,phys,PAGE_FLAG_MAKE|PAGE_FLAG_WRITE|PAGE_FLAG_UC);
+    memcpy((void*)phys);
+    //Start up other APs
+    uint32_t wakeup = LAPIC_ICR_VECTOR(0);
+    wakeup |= LAPIC_ICR_MT_SIPI|LAPIC_ICR_DSH_DESTINATION_ALL_EXC_SELF;
+    writeLapic(ap,LAPIC_ICR0,wakeup,false);*/
+    //Wait for APs to wakeup
+    //while(apInit != apCount){}
+    return;
 }

@@ -7,6 +7,7 @@ ARM_MACHINE = raspi3b
 CROSS_COMPILER = ~/opt/cross/bin/x86_64-elf-gcc
 #For compiling hosted C code
 C_COMPILER = gcc
+#For compiling assembly
 x64_AS = nasm
 A64_AS = as
 #Linkers

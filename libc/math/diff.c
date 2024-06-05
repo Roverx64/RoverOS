@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <math.h>
 
-size diff(size a, size b){
-    if(a > b){return a-b;}
-    return b-a;
+size_t diff(size_t a, size_t b){
+    return (a > b) ? (a-b):(b-a);
 }

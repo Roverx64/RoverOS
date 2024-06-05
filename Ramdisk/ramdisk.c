@@ -38,7 +38,7 @@ void addFile(const char *subPath, const char *name, const char *ext, uint16_t fl
     fhdr.offset = sizeof(struct ramdiskFile)+nLen+xLen+fhdr.size+2;
     fhdr.flags = flags;
     fwrite(&fhdr,sizeof(fhdr),1,disk);
-    fprintf(disk,"%s%c%s%c",name,'\0',ext,'\0');
+    fprintf(disk,"%s.%s%c",name,ext,'\0');
     copyFile(fl,disk,fhdr.size);
     fclose(fl);
     free(path);

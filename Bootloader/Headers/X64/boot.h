@@ -1,12 +1,9 @@
 #pragma once
-#include "bootinfo.h"
-#include "boottypes.h"
 #include "bootArgs.h"
+#include "bootinfo.h"
 #include "polarboot.h"
+#include <stdint.h>
 
 extern struct bootInfo kinf;
-extern uint64 bootstrapKernel(EFI_HANDLE ImageHandle);
-extern EFI_STATUS initGOP();
-extern EFI_STATUS initPaging();
-extern EFI_STATUS initMMAP();
+extern uint64_t bootstrapKernel(EFI_HANDLE handle);
 extern void setCR3();

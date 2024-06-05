@@ -1,7 +1,7 @@
 #pragma once
 #include <efi.h>
-#include "boottypes.h"
+#include <stdint.h>
 #include "bootFile.h"
 
-extern uint64 getArgv(uint64 arg);
+extern uint64_t getArgv(uint64_t arg);
 extern void initArgs(EFI_HANDLE ImageHandle);

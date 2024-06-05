@@ -1,29 +1,29 @@
 #include <stdint.h>
 #include <debug.h>
-#include <registers.h>
-#include "interrupt.h"
-#include "paging.h"
+#include <cpu.h>
+#include <paging.h>
+#include <vmm.h>
 
 intHandler pageFault(registers reg){
     kdebug(DNONE,"#==========Page=Fault==========#\n");
-    uint64 faultAddr = 0x0;
-    uint64 cr3 = 0x0;
+    uint64_t faultAddr = 0x0;
+    uint64_t cr3 = 0x0;
     asm volatile("movq %%cr3, %0" : "=r"(cr3));
     asm volatile("movq %%cr2, %0" : "=r"(faultAddr));
-    kdebug(DNONE,"ADDR=0x%llx\n",faultAddr);
-    uint8 present = reg.ec&(1<<0);
-    uint8 write = reg.ec&(1<<1);
-    uint8 user = reg.ec&(1<<2);
-    uint8 resv = reg.ec&(1<<3);
-    uint8 fetch = reg.ec&(1<<4);
-    kdebug(DNONE,"CR3=0x%llx\n",cr3);
+    kdebug(DNONE,"ADDR=0x%lx\n",faultAddr);
+    uint8_t present = reg.ec&(1<<0);
+    uint8_t write = reg.ec&(1<<1);
+    uint8_t user = reg.ec&(1<<2);
+    uint8_t resv = reg.ec&(1<<3);
+    uint8_t fetch = reg.ec&(1<<4);
+    kdebug(DNONE,"CR3=0x%lx\n",cr3);
     kdebug(DNONE,"CPL=");
     if(!user){kdebug(DNONE,"Supervisor\n");}
     else{kdebug(DNONE,"User\n");}
-    uint64 page = getPageInfo(cr3,faultAddr);
+    uint64_t page = getPageInfo(cr3,faultAddr);
     if(page == 0x0){kdebug(DNONE,"Page not found in cr3\n"); goto cause;}
-    kdebug(DNONE,"RAW=0x%llx\n",page);
-    kdebug(DNONE,"PHYS=0x%llx\n",TABLE_BASE(page));
+    kdebug(DNONE,"RAW=0x%lx\n",page);
+    kdebug(DNONE,"PHYS=0x%lx\n",TABLE_BASE(page));
     kdebug(DNONE,"RIP=0x%lx\n",reg.rip);
     kdebug(DNONE,"FLAGS=");
     if(page&PG_PRESENT){kdebug(DNONE,"P");}else{kdebug(DNONE,"-");}

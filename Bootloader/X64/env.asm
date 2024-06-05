@@ -5,6 +5,12 @@
 ;Checks for XD support and enables it
 ;Some hardware, like my dell optiplex, does not enable XD by default even when enabled in UEFI
 ;Returns a bitmap of supported hardware
+
+;TODO: move this to after we exit bootservices
+
+;NOTE: The bootloader doesn't own the hardware at this point
+;This should only change these after exiting bootservices
+
 ;0 = Not supported
 ;Bit 0 = XD support
 checkHardware:

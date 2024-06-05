@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <debug.h>
-#include <registers.h>
-#include "interrupt.h"
+#include <cpu.h>
 
 intHandler generalProtectionFault(registers reg){
     kdebug(DNONE,"#======General=Protection=Fault======#\n");
@@ -23,7 +22,7 @@ intHandler generalProtectionFault(registers reg){
     }
     kdebug(DNONE," entry #0x%x\n",(uint32)(reg.ec>>3)&0x1FFF);
     //dumpRegisters(reg);
-    readInstruction(reg.rip);
+    //readInstruction(reg.rip);
     kdebug(DNONE,"#====================================#\n");
     for(;;){asm("hlt");}
 }

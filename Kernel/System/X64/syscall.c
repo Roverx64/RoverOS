@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <kernel.h>
 #include "debug.h"
 #include "syscall.h"
 
@@ -11,8 +12,7 @@ void registerSyscall(syscallHandler handle, uint64 n){
 
 void syscallEntry(uint64 n){
     if(handles[n] == 0x0){
-        kdebug(DWARN,"Unhandled SYSCALL 0x%lx\n",n);
-        for(;;){asm("hlt");}
+        kpanic("Unhandled syscall",n);
     }
     handles[n](n);
     return;

@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <debug.h>
-#include <registers.h>
-#include "interrupt.h"
+#include <cpu.h>
 
 extern intHandler generalProtectionFault(registers reg);
 extern intHandler divByZero(registers reg);

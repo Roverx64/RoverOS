@@ -1,80 +1,80 @@
 #include <stdint.h>
-#include <stdio.h>
-#include "task.h"
-#include "kheap.h"
-#include "debug.h"
-#include "pmm.h"
-#include "paging.h"
-#include "exec.h"
-#include "gdt.h"
-#include "tss.h"
+#include <kmalloc.h>
+#include <mutex.h>
+#include <task.h>
+#include <vmm.h>
+#include <lapic.h>
+#include <string.h>
+#include <kcache.h>
 
-taskQueue queues[4];
-taskTicket *cticket;
+struct taskQueue queue[TASK_MAX_PRIORITY+1];
+uint8_t queueCursor = TASK_MAX_PRIORITY; //Downwards counting
+mutex_t taskLock = 0;
+extern void switchTask(uint64_t rsp, uint64_t cr3);
+kcache *ticketCache;
 
-bool addTicket(uint8 priority,uint16 flags,uintptr *tss,uintptr *heap){
-    taskTicket *ticket = NULL;
-    for(int i;i < queues[priority].slots;++i){
-        if(queues[priority].tickets[i].flags&TICKET_FLAG_INUSE == 0x0){
-            ticket = &queues[priority].tickets[i];
-            goto end;
-        }
+bool addTicket(struct taskTicket *ticket){
+    GET_LOCK(taskLock);
+    if(ticket == NULL){FREE_LOCK(taskLock); return false;}
+    if(ticket->priority > TASK_MAX_PRIORITY){FREE_LOCK(taskLock); return false;}
+    uint8_t p = ticket->priority;
+    if(queue[p].enQueue == queue[p].queueMaxSize){
+        queue[p].ticket = (struct taskTicket*)krealloc(queue[p].ticket,sizeof(struct taskTicket)*queue[p].queueMaxSize+10);
+        memset((void*)((uint64_t)queue[p].ticket+queue[p].queueMaxSize),0x0,sizeof(struct taskTicket)*10);
+        queue[p].queueMaxSize += 10;
     }
-    //Realloc
-    end:
-    ticket->pid = SET_PID(priority,0x0);
-    ticket->timeSlice = CALC_TIMESLICE(priority);
-    ticket->heapMagic = 0x0; /*Randomize eventually*/
-    ticket->flags = TICKET_FLAG_INUSE;
-    ticket->priority = priority;
-    ticket->heap = heap;
-    ticket->tss = tss;
+    //Find free ticket
+    for(uint32_t i = 0; i < queue[p].queueMaxSize; ++i){
+        if(queue[p].ticket[i] != NULL){continue;}
+        queue[p].enQueue += 1;
+        memcpy(&queue[p].ticket[i],ticket,sizeof(struct taskTicket));
+        break;
+    }
+    FREE_LOCK(taskLock);
+    return true;
 }
 
-void initQueues(){
-    //
+void nextTask(){
+    //Get APIC id to identify CPU
+    uint16_t id = getLapicID();
+    GET_LOCK(taskLock);
+    struct taskTicket *tsk = &queue[queueCursor].ticket[queue[queueCursor].ticketCursor];
+    if(queue[queueCursor].ticketCursor == 0){
+        queue[queueCursor].ticketCursor = queue[queueCursor].enQueue;
+    }
+    else{
+        queue[queueCursor].ticketCursor -= 1;
+    }
+    if(queueCursor == 0){queueCursor = TASK_MAX_PRIORITY;}
+    else{--queueCursor;}
+    FREE_LOCK(taskLock);
+    //Set RSP0
+    //cpu[id].tss->RSP0 = tsk->krsp;
+    //Set lapic
+    //writeNewTaskTimer(id, TASK_TIMESLICE(tsk->priority));
+    //Switch task
+    switchTask(tsk->rsp,(uint64_t)tsk->space->pml4e);
 }
 
-taskTicket *createTicket(){
-    taskTicket *ticket = (taskTicket*)halloc(sizeof(taskTicket));
-}
+extern void contextSwitch(void);
 
-void initMultitasking(){
-    cticket = (taskTicket*)halloc(sizeof(taskTicket));
-    cticket->pid = 0;
-    cticket->timeSlice = CALC_TIMESLICE(TASK_PRIORITY_HIGH);
-    cticket->heapMagic = 0x0;
-    cticket->flags = 0x0;
-    cticket->priority = TASK_PRIORITY_HIGH;
-    cticket->heap = NULL;
-    cticket->tss = NULL;
-    uint64 pml;
-    asm volatile("movq %%cr3, %0":"=r" (pml):);
-    cticket->space.pml4e = (uint64*)pml;
-}
-
-pageSpace *getTaskPageSpace(uint32 pid, bool current){
-    return &cticket->space;
-}
-
-//Basic roundrobin for testing
-taskTicket tskq[10];
-uint32 ctsk = 0;
-
-taskTicket *currentTicket(){
-    return &tskq[ctsk];
-}
-
-taskTicket *fetchTicket(uint64 tic){
-    return &tskq[tic];
-}
-
-taskTicket *nextTicket(){
-    if(ctsk+1 > 9){return &tskq[0];}
-    return &tskq[ctsk+1];
-}
-
-void incTask(){
-    if(ctsk+1 > 9){ctsk = 0; return;}
-    ++ctsk;
+//Setups kernel's task and ticket
+void initTasking(){
+    struct taskTicket kticket;
+    kticket.id = 0;
+    kticket.priority = TASK_PRIORITY_SYSTEM;
+    kticket.rsp = 0x0;
+    kticket.krsp = 0x0;
+    //Intilize task structures
+    for(int i = 0; i < TASK_MAX_PRIORITY; ++i){
+        queue[i].priority = i;
+        queue[i].queueMaxSize = 30;
+        queue[i].enQueue = 0;
+        queue[i].ticket = kmalloc(sizeof(struct taskTicket)*30);
+        memset(queue[i].ticket,0x0,sizeof(struct taskTicket)*30);
+    }
+    //Add kernel ticket
+    addTicket(&kticket);
+    //Override IDT entry for preemptive task switching
+    overrideIDTEntry(255,contextSwitch);
 }

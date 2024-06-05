@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <debug.h>
-#include <registers.h>
-#include "interrupt.h"
+#include <cpu.h>
 
 intHandler invalidOpcode(registers reg){
     kdebug(DNONE,"#===Invalid=Opcode===#\n");
