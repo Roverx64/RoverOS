@@ -7,8 +7,8 @@ There is no specific goal of this OS/Kernel, it is just for fun and to learn mor
 
 ### Planned for next update
 Things I will try to add in the next update
-* Barebones XHCI support
-* MSI/X support
+* Moving away from GNUEFI and onto my own UEFI abstraction and headers
+* General frameworks for future updates (IE. SLAB, Buddy, AHCI, Mutlitasking)
 
 ### Planned features
 These are things I will likely add/do in the near future
