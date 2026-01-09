@@ -13,7 +13,7 @@ struct systemInformation{
     void *ahci;
     void *pci;
     uint16_t cpuCount;
-    struct cpuInfo *cpu;
+    //struct cpuInfo *cpu;
 };
 
 extern struct systemInformation sysinf;

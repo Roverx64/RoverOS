@@ -1,8 +1,0 @@
-dump-vga=0;
-no-jump=0;
-dump-cr3=0;
-map-mmap=0;
-dump-pml=0;
-load-console=0;
-test-draw=0;
-dump-mmap=0;

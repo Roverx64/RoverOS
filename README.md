@@ -7,7 +7,6 @@ There is no specific goal of this OS/Kernel, it is just for fun and to learn mor
 
 ### Planned for next update
 Things I will try to add in the next update
-* Moving away from GNUEFI and onto my own UEFI abstraction and headers
 * General frameworks for future updates (IE. SLAB, Buddy, AHCI, Mutlitasking)
 
 ### Planned features
@@ -35,7 +34,6 @@ Tools needed for AMD64
 * `nasm`
 * `mtools`
 * `xorriso`
-* `gnu-efi` (https://github.com/vathpela/gnu-efi is the default repo)
 * `qemu-system-x86_64`
 
 ### ARM requirements

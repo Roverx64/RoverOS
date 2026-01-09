@@ -1,124 +1,210 @@
 #include <kcache.h>
 #include <stdint.h>
 #include <string.h>
-#include <hashmap.h>
+#include <hashtable.h>
 #include <pmm.h>
 #include <paging.h>
 #include <kmalloc.h>
-#include <debug.h>
+#include <kprint.h>
+#include <mutex.h>
+#include <cpu.h>
+#include <kernel.h>
+#include <pointer.h>
 
-kcache slabCache; //Internal cache
+kcache internalkcacheCache; //Cache of 'kcache' objects
+char *kcName = "kcache_cache";
+kslab *freeList = NULL;
+kslab *inUse = NULL;
+mutex_t listLock = 0;
 
-uint64_t kcacheHasher(uint64_t key){
-    return key;
+//NOTE: Very unfinished SLAB code
+//Many hacks were done here
+
+void freeSlab(kslab *slab){
 }
 
-kcacheConstructor slabConstructor(){
-    return 0;
+/*!
+    !D Carves up a new slab for a cache
+    NOTE: Assumes addr is mapped as rw
+    Caller must have the cache lock
+*/
+kslab *carveSlab(kcache *cache, uint64_t virt, uint64_t phys, size_t slabsz){
+    kslab *slab = (kslab*)kmalloc(sizeof(kslab));
+    if(!slab){kerror("Failed to allocate slab\n"); return NULL;}
+    slab->flags = 0x0;
+    slab->references = 0;
+    slab->size = slabsz;
+    slab->phys = phys;
+    slab->virt = virt;
+    slab->prev = NULL;
+    slab->next = NULL;
+    bool redzone = cache->flags&KCACHE_FLAG_REDZONE;
+    slab->bufferCount = slab->size/cache->objSize;
+    //Probably shouldn't use the kernel heap, but whatever for now
+    uint64_t n = slab->bufferCount/64;
+    if(!n){n = 1;}
+    slab->bitmap = (uint64_t*)kmalloc(sizeof(uint64_t)*n);
+    memset(slab->bitmap,0x0,sizeof(uint64_t)*n);
+    FREE_LOCK(slab->lock);
+    return slab;
 }
 
-kcacheDestructor slabDestructor(){
-    return 0;
+/*!
+    Caller must have the cache lock
+*/
+kslab *newSlabPhys(kcache *cache, uint64_t phys, size_t physSz){
+    //Allocate virt memory
+    uint64_t virt = 0x0;
+    if((cache->flags&KCACHE_FLAG_NO_MAP) == 0){
+        virt = (uint64_t)vmallocPhys(phys,physSz,VTYPE_HEAP,VFLAG_MAKE|VFLAG_WRITE);
+        if(!virt){kerror("valloc() failed\n"); return NULL;}
+    }
+    kslab *slab = carveSlab(cache,virt,phys,physSz);
+    if(!slab){vmFree((void*)virt); return NULL;}
+    return slab;
 }
 
-extern void *pmmBumpAlloc(struct bootInfo *kinf,size_t sz);
-
-void initSLAB(struct bootInfo *kinf){
-    kdebug(DINFO,"Initilizing SLAB allocator\n");
-    slabCache.flags = 0x0;
-    slabCache.name = (char*)kmalloc(sizeof(char)*16);
-    strcpy(slabCache.name,(char*)"kcache_slab\0");
-    slabCache.objSize = sizeof(kcache);
-    slabCache.align = 0;
-    slabCache.type = MEMORY_TYPE_ANY;
-    slabCache.slabs = NULL;
-    slabCache.map = NULL;
-    slabCache.constructor = slabConstructor;
-    slabCache.destructor = slabDestructor;
-    kdebug(DINFO,"Initilized SLAB\n");
+/*!
+    Creates a new slab with 'count' number of objects.
+    It's not guarunteed a slab will return with 'count' number of slots availible.
+    Caller must have the cache lock
+*/
+kslab *newSlab(kcache *cache, size_t count){
+    size_t sz = 0x0;
+    //kinfo("0x%lx\n",sz);
+    //Allocate phys memory
+    uint64_t phys = allocPhys(cache->objSize*count,cache->type,(cache->type == MEMORY_TYPE_ANY) ? 0 : ORDER_FLAG_STRICT_MATCH,&sz);
+    if(phys == MEMORY_ALLOCATION_FAILED){kwarn("Failed to allocate phys memory. OOM?\n"); return NULL;}
+    kslab *nslb = newSlabPhys(cache,phys,sz);
+    if(!nslb){freeNPhys(phys,sz);}
+    return nslb;
 }
 
-kcache *kcacheCreate(char *name, size_t objSize, uint16_t align, uint64_t flags, kcacheConstructor *constructor, kcacheDestructor *destructor){
-    //Check if flags are valid
-    if(flags > KCACHE_VALID_FLAGS){return NULL;}
-    //Allocate space for the cache and name using the slower kmalloc
-    kcache *cache = (kcache*)kmalloc(sizeof(kcache)+strlen(name));
-    cache->name = (char*)((uint64_t)cache+sizeof(kcache));
-    strcpy(cache->name,name);
-    //cache->slabs = newSlab(objSize,align,MEMORY_TYPE_ANY,flags&KCACHE_FLAG_REDZONE);
-    cache->slabs->prev = NULL;
-    cache->slabs->next = NULL;
-    cache->constructor = constructor;
-    cache->destructor = destructor;
-    //cache->map = hashmapCreate();
+//Cache functions
+
+kcacheConstructor *slabConstructor(){
+
+}
+
+kcacheDestructor *slabDestructor(){
+
+}
+
+/*!
+    Useful for statically allocated caches (Eg. 'internalkcacheCache)
+*/
+void fillCacheDetails(kcache *cache, char *name, size_t objSize, uint16_t align, uint8_t type, uint64_t flags, kcacheConstructor *constructor, kcacheDestructor *destructor){
+    cache->flags = flags&KCACHE_VALID_FLAGS;
+    cache->name = (char*)kmalloc((strlen(name)+1)*sizeof(char));
+    if(!cache->name){kerror("kmalloc() failed. using 'name' ptr instead."); cache->name = name;}
+    else{strcpy(cache->name,name);}
+    cache->slabs = NULL; //Created on allocation
+    cache->objSize = objSize;
+    cache->constructor = (constructor) ? constructor : slabConstructor;
+    cache->destructor = (destructor) ? destructor : slabDestructor;
+    cache->type = type;
+    FREE_LOCK(cache->lock);
+}
+
+//Gets free buffer from slab and returns a pointer
+//Ignores alignment for now
+void *allocateBuffer(kcache *cache, kslab *slab){
+    GET_LOCK(slab->lock);
+    if(slab->bufferCount == slab->references){kinfo("SLAB is full!\n"); FREE_LOCK(slab->lock); return NULL;}
+    //kinfo("Checking for free buffer {0x%lx R 0x%lx C}\n",slab->references,slab->bufferCount);
+    uint32_t left = slab->bufferCount;
+    bool found = false;
+    uint32_t i = 0;
+    uint32_t b = 0;
+    uint32_t checked = 0;
+    //kinfo("0x%x buffers to test\n",slab->bufferCount);
+    while(checked < slab->bufferCount){
+        i = checked/64;
+        ++checked;
+        if(b == 64){b = 0;}
+        //kinfo("Testing [0x%x][0x%x]\n",i,b);
+        if(slab->bitmap[i]&(0x1<<b)){++b; continue;}
+        found = true;
+        break;
+    }
+    exit:
+    if(!found){FREE_LOCK(slab->lock); kinfo("No free bit found\n"); return NULL;} //Extend heap
+    //Calculate address
+    uint64_t ptr = (i*64)+b;
+    ptr *= cache->objSize;
+    ptr += slab->virt;
+    slab->bitmap[i] |= (0x1<<b);
+    slab->references += 1;
+    FREE_LOCK(slab->lock);
+    return (void*)ptr;
+}
+
+void *kcacheAlloc(kcache *cache, uint64_t flags){
+    GET_LOCK(cache->lock);
+    kslab *chosen = cache->slabs;
+    while(chosen != NULL){
+        if(chosen->bufferCount > chosen->references){break;}
+        chosen = (kslab*)chosen->next;
+    }
+    if(!chosen){
+        chosen = newSlab(cache,10);
+        if(!chosen){
+            kerror("Failed to allocate new memory\n");
+            if(cache->flags&KCACHE_FLAG_NO_WAIT){FREE_LOCK(cache->lock); return NULL;}
+            /*Yield time slice and try again here*/
+            FREE_LOCK(cache->lock);
+            return NULL;
+        }
+        chosen->next = cache->slabs;
+        cache->slabs = (void*)chosen;
+        if(chosen->next){((kslab*)chosen->next)->prev = (void*)chosen;}
+    }
+    void *ptr = allocateBuffer(cache,chosen);
+    FREE_LOCK(cache->lock);
+    return ptr;
+}
+
+void kcacheFree(kcache *cache, void *ptr){
+}
+
+/*!
+    Creates a new cache.
+*/
+kcache *kcacheCreate(char *name, size_t objSize, uint16_t align, uint8_t type, uint64_t flags, kcacheConstructor *constructor, kcacheDestructor *destructor){
+    kcache *cache = kcacheAlloc(&internalkcacheCache,0);
+    if(!cache){kerror("Failed to allocated from internal cache\n"); return NULL;}
+    fillCacheDetails(cache,name,objSize,align,type,flags,constructor,destructor);
+    kinfo("Created new cache '%s' [Sz 0x%lx|A 0x%x|F 0x%lx]\n",name,objSize,align,flags);
     return cache;
 }
 
 void kcacheDestroy(kcache *cache){
-    //Free all slabs
-    kcacheReap(cache);
-}
-
-//Gets free buffer from slab and returns a pointer
-void *allocateBuffer(kcache *cache, kslab *slab){
-    for(uint16_t i = 0; i < slab->bufferCount; ++i){
-        if(slab->buff[i].inUse){continue;}
-        slab->buff[i].inUse = true;
-        slab->references += 1;
-        hashmapInsert(cache->map,&slab->buff[i].ptr,&slab->buff[i],false);
-        return slab->buff[i].ptr;
-    }
-    //We shouldn't end up here
-    return NULL;
-}
-
-void *kcacheAlloc(kcache *cache, uint64_t flags){
-    //Check slabs for free buffers
-    kslab *slab = cache->slabs;
-    while(slab->next != NULL){
-        if(slab->references == slab->bufferCount){continue;}
-        return allocateBuffer(cache,slab);
-    }
-    kcacheGrow(cache);
-    //Return buffer from new slab
-    slab = (kslab*)cache->slabs->next;
-    return allocateBuffer(cache,slab);
-}
-
-void kcacheFree(kcache *cache, void *ptr){
-    //kbuff *buff = (kbuff*)hashmapGetValue(cache->map,(uint64_t)ptr);
-    //if(buff == NULL){return;}
-    //buff->inUse = false;
-    //buff->slab->references -= 1;
-}
-
-//Carves up a new slab for a cache
-kslab *newSlab(size_t objSz, uint16_t align, uint8_t type, bool redZone){
-    kslab *slab = (kslab*)kmalloc(sizeof(kslab));
-    uint64_t order = (objSz/PAGE_SZ);
-    uint64_t phys = allocPhys(order,type,MEMORY_TYPE_ANY);
-    uint64_t sz = (order*PAGE_SZ)+PAGE_SZ;
-    //Determine number of buffers needed
-    uint64_t buffers = sz/objSz;
-    uint64_t extra = sz-(buffers*objSz);
-    uint64_t zones = buffers*sizeof(uint64_t);
-    if(redZone){}
-    slab->size = objSz;
-    slab->references = 0;
-    slab->buff = NULL;
-    slab->next = NULL;
-    slab->prev = NULL;
-    return slab;
 }
 
 void kcacheGrow(kcache *cache){
-    kslab *slab = newSlab(cache->objSize,cache->align,cache->type,cache->flags&KCACHE_FLAG_REDZONE);
-    if(slab == NULL){return;}
-    slab->next = cache->slabs->next;
-    slab->prev = cache->slabs;
-    cache->slabs->next = (void*)slab;
-    ((kslab*)slab->next)->prev = (void*)slab;
+    kslab *slab = newSlab(cache,10);
+    KASSERT((slab != NULL),"NULL slab");
+    slab->next = (void*)cache->slabs;
+    cache->slabs = slab;
+    kinfo("Extended kcache '%s'\n",cache->name);
 }
 
 void kcacheReap(kcache *cache){
+}
+
+void initSLAB(struct bootInfo *kinf){
+    kinfo("Initilizing SLAB allocator\n");
+    fillCacheDetails(&internalkcacheCache,&kcName,sizeof(kcache),0,MEMORY_TYPE_ANY,0,NULL,NULL);
+    kinfo("Initilized SLAB\n");
+}
+
+kcache *createVMarkerCache(char *name, size_t objSize, uint16_t align, uint8_t type, uint64_t flags, kcacheConstructor *constructor, kcacheDestructor *destructor){
+    kcache *cache = (kcache*)kmalloc(sizeof(kcache));
+    if(!cache){kpanic("Failed to allocate VMM cache",0);}
+    fillCacheDetails(cache,name,objSize,align,type,flags,constructor,destructor);
+    void *ptr = kmallocAligned(PAGE_SZ); //The OS will panic should this alloc fail
+    cache->slabs = carveSlab(cache,(uint64_t)ptr,0x0,PAGE_SZ);
+    KASSERT((cache->slabs != NULL),"Failed to carve slab");
+    kinfo("Created vMarker cache '%s' [Sz 0x%lx|A 0x%x|F 0x%lx]\n",name,objSize,align,flags);
+    return cache;
 }

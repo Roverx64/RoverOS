@@ -1,0 +1,9 @@
+/dts-v1/;
+/ {
+    cpu{
+        serial{
+            devname = "serial";
+            int = <0x9 0xEB>;
+        };
+    };
+};

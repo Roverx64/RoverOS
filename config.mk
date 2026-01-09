@@ -1,25 +1,27 @@
 #Emulators
-x86_64_EMU = qemu-system-x86_64
-AARCH64_EMU = qemu-system-aarch64
-ARM_MACHINE = raspi3b
+X64_EMU = qemu-system-x86_64
+A64_EMU = qemu-system-aarch64
+A64_MACHINE = raspi4b
 #Compilers
 #For compiling the kernel/bootloader C code
-CROSS_COMPILER = ~/opt/cross/bin/x86_64-elf-gcc
+X64_COMPILER = gcc
+A64_COMPILER = gcc
 #For compiling hosted C code
 C_COMPILER = gcc
 #For compiling assembly
-x64_AS = nasm
-A64_AS = as
+X64_AS = nasm
+A64_AS = arm-none-eabi-as
 #Linkers
-x64_LD = ld
+X64_LD = ld
 A64_LD = arm-none-eabi-ld 
 #Paths
-GNUEFI_REPO = https://github.com/vathpela/gnu-efi
+EFI_REPO = https://github.com/Roverx64/SEFI
 OUTPUT_PATH = ./Output
-OVMF_PATH = /usr/share/OVMF/x64
-EFI_PATH = ./Bootloader/Resources
+OVMF_PATH = ./Other
+EFI_PATH = ./Bootloader/SEFI
 OTHER_PATH = ./Other
-HDD_PATH = /mnt/1A3C-AD55
-USB_PATH = /run/media/rover/CAF4-80D1
+HDD_PATH = /mnt/HDD
+USB_PATH = /run/media/rover/USB
+RAMDISK_ROOT = ./Ramdisk/FS
 #Other
-EXPERIMENTAL_ARGS =
+EXPERIMENTAL_ARGS = -d int,guest_errors,cpu_reset

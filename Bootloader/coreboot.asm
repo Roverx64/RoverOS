@@ -118,6 +118,10 @@ pop rdi
 ;Register lapic and wait for a task
 lea rax, registerLapic
 call rax
+;Set GS to returned number
+mov gs, 0
+swapgs
+mov gs, rax
 .endini:
 hlt
 jmp .endini

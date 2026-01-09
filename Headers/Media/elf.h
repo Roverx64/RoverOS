@@ -13,9 +13,13 @@ typedef uint8_t ELF64_Byte;
 typedef uint16_t ELF64_Section;
 
 #define ELF_MAGIC (ELF64_Byte*)"\177ELF"
+#define ELF_FMAGIC 0x7F454C46
 
 typedef struct ELF64eident{
-    ELF64_Byte magic[4];
+    union{
+        ELF64_Byte magic[4];
+        ELF64_Word fmagic;
+    };
     ELF64_Byte class;
     ELF64_Byte data;
     ELF64_Byte version;
@@ -64,6 +68,15 @@ typedef struct ELF64ProgramHeaderS{
     ELF64_Xword align;
 }ELF64ProgramHeader;
 
+typedef struct ELF64SymS{
+    ELF64_Word name;
+    unsigned char info;
+    unsigned char other;
+    ELF64_Half shndx;
+    ELF64_Addr value;
+    ELF64_Xword size;
+}ELF64Sym;
+
 //Ident
 #define ELF_CLASS32 1
 #define ELF_CLASS64 2
@@ -96,3 +109,16 @@ typedef struct ELF64ProgramHeaderS{
 #define PF_X 0x1 //Executable
 #define PF_W 0x2 //Writable
 #define PF_R 0x4 //Readable
+//Symbol table
+#define STB_LOCAL 0
+#define STB_GLOBAL 1
+#define STB_WEAK 2
+#define STB_LOOS 10
+#define STB_HIOS 12
+#define STB_LOPROC 13
+#define STB_HIPROC 14
+//Symbol table types
+#define STT_NOTYPE 0
+#define STT_OBJECT 1
+#define STT_FUNC 2
+#define STT_SECTION 3

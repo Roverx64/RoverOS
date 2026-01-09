@@ -7,10 +7,10 @@
 
 typedef struct FILE{
     void *stream;
-    uint64 offset;
-    uint64 size;
+    uint64_t offset;
+    uint64_t size;
 }FILE;
 
-extern uint64 ftell(FILE *fl);
-extern size fread(void *dest, size bytes, size n, FILE *fl);
-extern uint64 fseek(FILE *fl,uint64 off,int seek);
+extern uint64_t ftell(FILE *fl);
+extern size_t fread(void *dest, size_t bytes, size_t n, FILE *fl);
+extern uint64_t fseek(FILE *fl,uint64_t off,int seek);

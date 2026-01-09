@@ -1,5 +1,7 @@
 #pragma once
 
+#define AHCI_PCI_ID
+
 #define AHCI_PCI_HBA 0x0
 #define AHCI_PCI_CMD 0x4
 #define AHCI_PCI_STS 0x6
@@ -17,10 +19,8 @@
 #define AHCI_PCI_MGNT 0x3E
 #define AHCI_PCI_MLAT 0x3F
 
-#define AHCI_PCI_CMD_BUS_MASTER_ENABLE 1<<2
-
-#define AHCI_HOST_CAPABILITIES 0x0 //HBA capabilites
-#define AHCI_GLOBAL_HOST_CONTROL 0x4 //Control bits for all HBAs
+#define AHCI_HBA_CAPABILITIES 0x0 //HBA capabilites
+#define AHCI_GLOBAL_HBA_CONTROL 0x4 //Control bits for all HBAs
 #define AHCI_INTERRUPT_STATUS 0x8 //Port interrupt status
 #define AHCI_PORTS_IMPLEMENTED 0xC //Ports available for the OS to use
 #define AHCI_VERSION 0x10 //Version of AHCI the controller is compliant with
@@ -107,34 +107,34 @@
 #define AHCI_PORT_SCTL_SPD_GEN3 0x3<<4
 #define AHCI_PORT_SCTL_IPM_NO_LIMIT 0x0
 
-#define AHCI_HOST_CAPABILITIES_NPS 0x0F //Number of ports
-#define AHCI_HOST_CAPABILITIES_SXS 1<<5 //External sata support
-#define AHCI_HOST_CAPABILITIES_EMS 1<<6 //Enclosure managenment supported
-#define AHCI_HOST_CAPABILITIES_CCCS 1<<7 //COMMAND_CC support
-#define AHCI_HOST_CAPABILITIES_NCS(HC) ((HC>>8)&0x0F) //Number of command slots
-#define AHCI_HOST_CAPABILITIES_PSC 1<<13 //Partial state capable
-#define AHCI_HOST_CAPABILITIES_SSC 1<<14 //Slumber state capable
-#define AHCI_HOST_CAPABILITIES_PMD 1<<15 //multiple DRQ block support
-#define AHCI_HOST_CAPABILITIES_FBSS 1<<16 //port mul FIS switching
-#define AHCI_HOST_CAPABILITIES_SPM 1<<17 //port mul supported
-#define AHCI_HOST_CAPABILITIES_SAM 1<<18 //AHCI only
-#define AHCI_HOST_CAPABILITIES_ISS(HC) ((hc>>20)&0x0F) //Interface speed
-#define AHCI_HOST_CAPABILITIES_ISS_GEN1 0x1 //1.5 Gbps
-#define AHCI_HOST_CAPABILITIES_ISS_GEN2 0x2 //3 Gbps
-#define AHCI_HOST_CAPABILITIES_ISS_GEN3 0x3 //6 Gbps
-#define AHCI_HOST_CAPABILITIES_SCLO 1<<24 //PxCMD.SLO support
-#define AHCI_HOST_CAPABILITIES_SAL 1<<25 //Activity light supported
-#define AHCI_HOST_CAPABILITIES_SALP 1<<26 //Auto-link gen supported
-#define AHCI_HOST_CAPABILITIES_SSS 1<<27 //Staggered spinup supported
-#define AHCI_HOST_CAPABILITIES_SMPS 1<<28 //Mechanical switches
-#define AHCI_HOST_CAPABILITIES_SSNTF 1<<29 //SNotification register support
-#define AHCI_HOST_CAPABILITIES_SNCQ 1<<30 //Native command queueing support
-#define AHCI_HOST_CAPABILITIES_S64A 1<<31 //64Bit structure support
+#define AHCI_HBA_CAPABILITIES_NPS 0x0F //Number of ports
+#define AHCI_HBA_CAPABILITIES_SXS 1<<5 //External sata support
+#define AHCI_HBA_CAPABILITIES_EMS 1<<6 //Enclosure managenment supported
+#define AHCI_HBA_CAPABILITIES_CCCS 1<<7 //COMMAND_CC support
+#define AHCI_HBA_CAPABILITIES_NCS(HC) ((HC>>8)&0x0F) //Number of command slots
+#define AHCI_HBA_CAPABILITIES_PSC 1<<13 //Partial state capable
+#define AHCI_HBA_CAPABILITIES_SSC 1<<14 //Slumber state capable
+#define AHCI_HBA_CAPABILITIES_PMD 1<<15 //multiple DRQ block support
+#define AHCI_HBA_CAPABILITIES_FBSS 1<<16 //port mul FIS switching
+#define AHCI_HBA_CAPABILITIES_SPM 1<<17 //port mul supported
+#define AHCI_HBA_CAPABILITIES_SAM 1<<18 //AHCI only
+#define AHCI_HBA_CAPABILITIES_ISS(HC) ((hc>>20)&0x0F) //Interface speed
+#define AHCI_HBA_CAPABILITIES_ISS_GEN1 0x1 //1.5 Gbps
+#define AHCI_HBA_CAPABILITIES_ISS_GEN2 0x2 //3 Gbps
+#define AHCI_HBA_CAPABILITIES_ISS_GEN3 0x3 //6 Gbps
+#define AHCI_HBA_CAPABILITIES_SCLO 1<<24 //PxCMD.SLO support
+#define AHCI_HBA_CAPABILITIES_SAL 1<<25 //Activity light supported
+#define AHCI_HBA_CAPABILITIES_SALP 1<<26 //Auto-link gen supported
+#define AHCI_HBA_CAPABILITIES_SSS 1<<27 //Staggered spinup supported
+#define AHCI_HBA_CAPABILITIES_SMPS 1<<28 //Mechanical switches
+#define AHCI_HBA_CAPABILITIES_SSNTF 1<<29 //SNotification register support
+#define AHCI_HBA_CAPABILITIES_SNCQ 1<<30 //Native command queueing support
+#define AHCI_HBA_CAPABILITIES_S64A 1<<31 //64Bit structure support
 
-#define AHCI_GLOBAL_HOST_CONTROL_HR 1<<0 //Interal reset of HBA
-#define AHCI_GLOBAL_HOST_CONTROL_IE 1<<1 //Interrupt enable
-#define AHCI_GLOBAL_HOST_CONTROL_MRSM 1<<2 //If set, HBA reverted to only one vector
-#define AHCI_GLOBAL_HOST_CONTROL_AE 1<<31 //Enable AHCI
+#define AHCI_GLOBAL_HBA_CONTROL_HR 1<<0 //Internal reset of HBA
+#define AHCI_GLOBAL_HBA_CONTROL_IE 1<<1 //Interrupt enable
+#define AHCI_GLOBAL_HBA_CONTROL_MRSM 1<<2 //If set, HBA reverted to only one vector
+#define AHCI_GLOBAL_HBA_CONTROL_AE 1<<31 //Enable AHCI
 
 #define AHCI_INTERRUPT_STATUS_OF_PORT(port,ints) ((ints)&((uint32)1<<port))
 
@@ -176,3 +176,53 @@
 #define AHCI_BIOS_HANDOFF_CS_SMI 1<<2 //SMI when OOS is set to 1
 #define AHCI_BIOS_HANDOFF_CS_OOC 1<<3 //OS ownership change
 #define AHCI_BIOS_HANDOFF_CS_BB 1<<4 //BIOS is busy cleaning up for ownership change
+
+struct ahciPortMMIO{
+    uint32_t cmdListBaseLower;
+    uint32_t cmdListBaseUpper;
+    uint32_t FISBaseLower;
+    uint32_t FISBaseUpper;
+    uint32_t interruptStatus;
+    uint32_t interruptEnable;
+    uint32_t command;
+    uint32_t reserved;
+    uint32_t taskFileData;
+    uint32_t signature;
+    uint32_t sataStatus;
+    uint32_t sataControl;
+    uint32_t sataError;
+}__attribute__((packed));
+
+struct ahciMMIO{
+    uint32_t hostCapabilities;
+    uint32_t globalHostControl;
+    uint32_t interruptStatus;
+    uint32_t portsImplimented;
+    uint32_t version;
+    uint32_t cccControl;
+    uint32_t cccPorts;
+    uint32_t emLocation;
+    uint32_t emControl;
+    uint32_t exCapabilities;
+    uint32_t biosHandoff;
+    //Padding
+    uint32_t pad[53];
+    struct ahciPortMMIO port[32];
+}__attribute__((packed));
+
+struct ahciCommandList{
+
+}__attribute__((packed));
+
+//Dev tree
+
+struct ahciInfo{
+    volatile struct ahciMMIO *mmio;
+    uint64_t physBAR;
+    uint64_t capabilities;
+    
+};
+
+//PCI stuff
+
+extern void initAHCI(uint8_t bus, uint8_t dev);

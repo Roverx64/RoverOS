@@ -11,39 +11,18 @@ struct ramdiskHeader{
 
 struct ramdiskFile{
     uint32_t magic;
-    uint16_t flags; //Flags
-    uint16_t name; //Offset to name relative to this struct
-    uint16_t ext; //Offset to ext relative to the struct
-    uint64_t offset; //Offset to next file
-    uint64_t size; //Size of file
+    size_t size; //Size of file
 }__attribute__((packed));
 
-//Returned by the openRamdiskFile() func
-struct rdFile{
-    struct ramdiskFile *rdfl; //Header struct pointer
-};
+typedef struct ramdiskFile RDFL;
 
-#define FLAG_WRITE 0x1<<0
+#define RD_FILE_DATA(fl,nlen) ((void*)((uint64_t)fl+sizeof(struct ramdiskFile)+nlen+1))
+#define RD_FILE_NAME(fl) ((char*)((uint64_t)fl+sizeof(RDFL)))
+#define RD_NEXT_FILE(fl,fsz,nlen) ((uint64_t)fl+fsz+nlen+1+sizeof(struct ramdiskFile))
 
-#define FILE_NAME(fl) ((uint64_t)fl+fl->name)
-#define FILE_EXT(fl) ((uint64_t)fl+fl->ext)
-#define FILE_DATA(fl,nlen) ((void*)((uint64_t)fl+sizeof(struct ramdiskFile)+nlen+1))
-
-#ifndef __STDC_HOSTED__
-extern void initRamdisk(void *ptr);
-extern struct rdFile *openRamdiskFile(char *name)
-extern void closeRamdiskFile(struct rdFile *fl);
-extern void *getRamdiskFileBuffer(struct rdFile *fl);
+#ifdef __STDC_HOSTED__
+extern RDFL *rdOpen(char *name);
+extern char *rdName(RDFL *fl);
+extern void rdRead(RDFL *fl, void *d, size_t bytes);
+extern size_t rdLen(RDFL *fl);
 #endif
-
-//General Ramdisk layout
-/*
-[Header]
-[File]
-<Name><ext>
-<File data>
-[File]
-<Name><ext>
-<File data>
-...
-*/

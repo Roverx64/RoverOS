@@ -6,75 +6,198 @@
 #include <lapic.h>
 #include <string.h>
 #include <kcache.h>
+#include <bootinfo.h>
+#include <kprint.h>
+#include <kernel.h>
+#include <sysinf.h>
 
-struct taskQueue queue[TASK_MAX_PRIORITY+1];
-uint8_t queueCursor = TASK_MAX_PRIORITY; //Downwards counting
-mutex_t taskLock = 0;
-extern void switchTask(uint64_t rsp, uint64_t cr3);
-kcache *ticketCache;
+//CPU specific structs
+//GS is used as the index
 
-bool addTicket(struct taskTicket *ticket){
-    GET_LOCK(taskLock);
-    if(ticket == NULL){FREE_LOCK(taskLock); return false;}
-    if(ticket->priority > TASK_MAX_PRIORITY){FREE_LOCK(taskLock); return false;}
-    uint8_t p = ticket->priority;
-    if(queue[p].enQueue == queue[p].queueMaxSize){
-        queue[p].ticket = (struct taskTicket*)krealloc(queue[p].ticket,sizeof(struct taskTicket)*queue[p].queueMaxSize+10);
-        memset((void*)((uint64_t)queue[p].ticket+queue[p].queueMaxSize),0x0,sizeof(struct taskTicket)*10);
-        queue[p].queueMaxSize += 10;
-    }
-    //Find free ticket
-    for(uint32_t i = 0; i < queue[p].queueMaxSize; ++i){
-        if(queue[p].ticket[i] != NULL){continue;}
-        queue[p].enQueue += 1;
-        memcpy(&queue[p].ticket[i],ticket,sizeof(struct taskTicket));
-        break;
-    }
-    FREE_LOCK(taskLock);
-    return true;
+struct localCPUInfo *cpuinf = NULL;
+kcache *ticketCache = NULL;
+
+//cpu.c
+extern uint64_t gdtEntries[8];
+
+mutex_t queueLock = 0x0;
+
+kcacheConstructor *constructor(){
+
+}
+
+kcacheDestructor *destructor(){
+
+}
+
+struct cpuScheduler *scheduler;
+static uint32_t inQueue = 1; //Tasks in the queue waiting for a time slice
+uint32_t suspendedQueueSize = 0; //Max queue size
+//Array of pointers to tickets currently blocked
+struct processTicket **suspendedTickets;
+
+/*!
+    !D Creates a process ticket
+    !I name: process name
+    !I priority: process priority
+    !I proc: process procmap
+    !I stack: process stack virtual address
+    !R Returns process ticket on success
+    !R NULL on error
+*/
+struct processTicket *createTicket(char *name, uint8_t priority, vMarker *vmem, uint64_t stack){
+    GET_LOCK(queueLock);
+    struct processTicket *ticket = kcacheAlloc(ticketCache,0x0);
+    memset(ticket,0x0,sizeof(struct processTicket));
+    ticket->name = name;
+    ticket->priority = priority;
+    ticket->vmem = vmem;
+    ticket->processID = 0;
+    //ticket->tss = initTSS();
+    return ticket;
+}
+
+/*!
+    !D Fetches the current CPU's task
+    !I None
+    !R Returns the process ticket for the current task
+*/
+struct processTicket *getCurrentTask(){
+    //Read GS for scheduler info
+    uint32_t i = getPerCPUInfo();
+    return scheduler[i].currentTask;
 }
 
 void nextTask(){
-    //Get APIC id to identify CPU
-    uint16_t id = getLapicID();
-    GET_LOCK(taskLock);
-    struct taskTicket *tsk = &queue[queueCursor].ticket[queue[queueCursor].ticketCursor];
-    if(queue[queueCursor].ticketCursor == 0){
-        queue[queueCursor].ticketCursor = queue[queueCursor].enQueue;
-    }
-    else{
-        queue[queueCursor].ticketCursor -= 1;
-    }
-    if(queueCursor == 0){queueCursor = TASK_MAX_PRIORITY;}
-    else{--queueCursor;}
-    FREE_LOCK(taskLock);
-    //Set RSP0
-    //cpu[id].tss->RSP0 = tsk->krsp;
-    //Set lapic
-    //writeNewTaskTimer(id, TASK_TIMESLICE(tsk->priority));
-    //Switch task
-    switchTask(tsk->rsp,(uint64_t)tsk->space->pml4e);
+
 }
 
-extern void contextSwitch(void);
+/*!
+    !D Gets the current process' ID
+    !I None
+    !R Returns process ID
+*/
+pid_t getCurrentTaskID(){
+    uint32_t i = getPerCPUInfo();
+    return (uint64_t)scheduler[i].currentTask->processID;
+}
 
-//Setups kernel's task and ticket
-void initTasking(){
-    struct taskTicket kticket;
-    kticket.id = 0;
-    kticket.priority = TASK_PRIORITY_SYSTEM;
-    kticket.rsp = 0x0;
-    kticket.krsp = 0x0;
-    //Intilize task structures
-    for(int i = 0; i < TASK_MAX_PRIORITY; ++i){
-        queue[i].priority = i;
-        queue[i].queueMaxSize = 30;
-        queue[i].enQueue = 0;
-        queue[i].ticket = kmalloc(sizeof(struct taskTicket)*30);
-        memset(queue[i].ticket,0x0,sizeof(struct taskTicket)*30);
+/*!
+    !D Suspends a process (IO/blocking)
+    !I id: process id to suspend
+    !R None
+*/
+void suspendProcess(uint64_t id){
+    //Read GS for CPU's id
+    uint32_t cpu = getPerCPUInfo();
+    scheduler[cpu].currentTask->flags |= TASK_FLAG_BLOCKED;
+    //switchTask(sche);
+    return;
+}
+
+/*!
+    !D Unsuspends a process
+    !I id: process id to unsuspend
+    !R None
+*/
+void unsuspendProcess(uint64_t id){
+    for(uint32_t i = 0; i < suspendedQueueSize; ++i){
+        if(suspendedTickets[i]->blocker != id){continue;}
+        suspendedTickets[i]->flags &= ~TASK_FLAG_BLOCKED;
+        return;
     }
-    //Add kernel ticket
-    addTicket(&kticket);
-    //Override IDT entry for preemptive task switching
-    overrideIDTEntry(255,contextSwitch);
+    return;
+}
+
+/*!
+    !D Switches a task on 'cpu' core
+    !I cpu: CPU core to switch
+    !R None
+    !C NOTE: Do the task switch!
+*/
+void switchTask(uint32_t cpu){
+    if(inQueue <= 1){
+        //Idle and wait for an interrupt
+        while(scheduler[cpu].currentTask->flags&TASK_FLAG_BLOCKED != 0){
+            asm volatile("hlt");
+        }
+        return; //Process is unsuspended
+    }
+    //Switch task here
+}
+
+struct cpuScheduler fschedule;
+struct processTicket ftask;
+
+/*!
+    !D Sets an error code for a process
+    !I err: Error code to set
+    !R None
+    !C TODO: Copy to user accessible area later
+*/
+void setErrorCode(int err){
+    struct processTicket *ticket = getCurrentTask();
+    ticket->ec = err;
+}
+
+/*!
+    !D Returns a process' error code
+    !R error code
+*/
+int getErrorCode(){
+    struct processTicket *ticket = getCurrentTask();
+    return ticket->ec;
+}
+
+/*!
+    !D Intilizes the multitasking structures
+    !I kinf: Pointer to bootInfo passed from bootloader
+    !R None
+*/
+void initTasking(struct bootInfo *kinf){
+    kinfo("Intilizing task structures\n");
+    uint32_t cores = 1;//sysinf.cpu->coreCount;
+    KASSERT(cores,"No core count");
+    //Ticket cache for faster allocations
+    ticketCache = kcacheCreate("ticketCache",sizeof(struct processTicket),0,MEMORY_TYPE_ANY,0,constructor,destructor);
+    KASSERT((uint64_t)ticketCache,"Creating kcache failed");
+    kinfo("Created kcache\n");
+    scheduler = (struct cpuScheduler*)kmalloc(sizeof(struct cpuScheduler)*cores);
+    scheduler->currentTask = &ftask;
+    kinfo("Allocated cpu structures with 0x%x cores\n",cores);
+    //Create kernel ticket
+    uint64_t stack = 0;
+    asm volatile("movq %%rbp, %0":"=r"(stack):);
+    struct processTicket *kt = createTicket((char*)"kernel",TASK_MAX_PRIORITY,ftask.vmem,stack);
+    kt->space = &kspace;
+    scheduler->currentTask = kt;
+    //cpuinf[0]
+    kinfo("Intilized multitasking\n");
+}
+
+vMarker *currentProcessVMarker(){
+    struct processTicket *t = getCurrentTask();
+    if(!t){return NULL;}
+    return t->vmem;
+}
+
+/*!
+    !D Creates a fake kernel task to use for bootstrapping memory
+    !R None
+*/
+void createFakeTask(){
+    kinfo("Creating fake task\n");
+    setPerCPUInfo(0);
+    swapPerCPUInfo();
+    setPerCPUInfo(0);
+    //Only these are used during bootstrap
+    ftask.vmem = (vMarker*)kmalloc(sizeof(vMarker));
+    ftask.vmem->base = 0x0;
+    ftask.vmem->pages = 1;
+    ftask.vmem->flags = 0;
+    ftask.vmem->next = NULL;
+    ftask.space = &kspace;
+    fschedule.currentTask = &ftask;
+    scheduler = &fschedule;
+    kinfo("Created fake task\n");
 }

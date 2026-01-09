@@ -1,10 +1,13 @@
-#include "ramdisk.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <ftw.h>
+#include "ramdisk.h"
 
 FILE *disk;
+struct ramdiskHeader header;
 
 uint64_t fileSz(FILE *fl){
     fseek(fl,0x0,SEEK_END);
@@ -16,51 +19,69 @@ uint64_t fileSz(FILE *fl){
 void copyFile(FILE *src, FILE *dest, uint64_t sz){
     char ch = 0x0;
     fseek(src,0,SEEK_SET);
-    for(int i = 0; i < sz; ++i){
+    for(uint64_t i = 0; i < sz; ++i){
         ch = fgetc(src);
         fputc(ch,dest);
     }
 }
 
-uint16_t fcount = 0;
-void addFile(const char *subPath, const char *name, const char *ext, uint16_t flags){
-    //Get full path
-    uint32_t nLen = strlen(name);
-    uint32_t xLen = strlen(ext);
-    uint32_t fullLen = nLen+xLen+strlen(subPath);
-    char *path = (char*)malloc(fullLen+16);
-    sprintf(path,"./Ramdisk/FS/%s/%s.%s%c",subPath,name,ext,'\0');
-    FILE *fl = fopen(path,"r");
-    if(fl == NULL){printf("Failed to open %s\n",path); free(path); return;}
-    struct ramdiskFile fhdr;
-    fhdr.magic = RD_FILE_MAGIC;
-    fhdr.size = fileSz(fl);
-    fhdr.offset = sizeof(struct ramdiskFile)+nLen+xLen+fhdr.size+2;
-    fhdr.flags = flags;
-    fwrite(&fhdr,sizeof(fhdr),1,disk);
-    fprintf(disk,"%s.%s%c",name,ext,'\0');
-    copyFile(fl,disk,fhdr.size);
+int addFile(const char *fp, const struct stat *sb, int flags, struct FTW *buf){
+    if(flags != FTW_F){return 0;}
+    //Add the file
+    FILE *fl = fopen(fp,"r");
+    if(!fl){printf("Failed to open %s\n",fp); return 0;}
+    uint64_t l = fileSz(fl);
+    struct ramdiskFile fh;
+    header.files += 1;
+    fh.magic = RD_FILE_MAGIC;
+    fh.size = l;
+    fwrite(&fh,sizeof(fh),1,disk);
+    //Get filename
+    uint64_t sl = strlen(fp);
+    while(((fp[sl] != '\\') && (fp[sl] != '/'))){--sl;}
+    ++sl;
+    char *name = (char*)malloc(sizeof(char)*(sl+1));
+    //Write filename
+    sprintf(name,"%s",(char*)(&fp[sl]));
+    fprintf(disk,"%s%c",name,'\0');
+    //Append file
+    copyFile(fl,disk,l);
+    //Cleanup
+    printf("[Added %s - %llu bytes]\n",name,l);
+    free(name);
     fclose(fl);
-    free(path);
-    printf("[Wrote %li bytes to disk|%s.%s]\n",fhdr.size,name,ext);
-    ++fcount;
+    return 0;
 }
 
-int main(){
-    disk = fopen("./Ramdisk/initrd.disk","w+");
-    if(disk == NULL){printf("Failed to open ramdisk\n"); exit(EXIT_FAILURE);}
-    struct ramdiskHeader header;
-    //Write blank header
-    fwrite(&header,sizeof(struct ramdiskHeader),1,disk);
+int main(int argc, char *argv[]){
+    if(argc < 2){printf("Missing base path argument\n"); exit(EXIT_FAILURE);}
+    printf("Base path %s\n",argv[1]);
+    disk = fopen("./Ramdisk/init.rd","w+");
+    if(!disk){printf("Failed to open ramdisk\n"); exit(EXIT_FAILURE);}
+    //Write temp header
+    fwrite(&header,sizeof(header),1,disk);
     //Write files
-    addFile("Media","test","png",0);
-    addFile("Fonts","Abyssinica","ttf",0);
+    if(nftw(argv[1],addFile,10,0) == -1){
+        int err = errno;
+        switch(err){
+            case ENOTDIR:
+            printf("'%s' is not a directory\n",argv[1]);
+            break;
+            case ENOENT:
+            printf("No '%s' directory\n",argv[1]);
+            break;
+            default:
+            printf("NFTW had an error - errno: %i\n",err);
+            break;
+        }
+        fclose(disk);
+        exit(EXIT_FAILURE);
+    }
     //Overwrite header
-    fseek(disk,0,SEEK_SET);
     header.magic = RD_HEADER_MAGIC;
-    header.files = fcount;
-    fwrite(&header,sizeof(struct ramdiskHeader),1,disk);
-    printf("[Wrote %i files|Total %li bytes/%li Mb]\n",fcount,fileSz(disk),fileSz(disk)/1048576);
+    fseek(disk,0x0,SEEK_SET);
+    fwrite(&header,sizeof(header),1,disk);
+    printf("[Wrote %i files|Total %llu bytes/%llu MB]\n",header.files,fileSz(disk),fileSz(disk)/1048576);
     fclose(disk);
     return 0;
 }
